@@ -1,0 +1,9 @@
+name: caption-codex
+channels:
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - Pillow
+      - Send2Trash

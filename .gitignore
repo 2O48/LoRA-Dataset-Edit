@@ -1,0 +1,41 @@
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Local model/cache artifacts
+models/
+
+# Local dataset/runtime artifacts
+datasets/tmp/*
+!datasets/tmp/.gitkeep
+datasets/exports/*
+!datasets/exports/.gitkeep
+datasets/processed/*
+!datasets/processed/.gitkeep
+datasets/projects/*
+!datasets/projects/.gitkeep
+datasets/workspaces/*
+!datasets/workspaces/.gitkeep
+
+# Local runtime and logs
+*.log
+.DS_Store
+
+# Local tool state
+.claude/
+.codex
+.agents/
+
+# Local secrets/config
+.env
+.env.*
+
+# Local prompt customizations
+prompt_templates.json

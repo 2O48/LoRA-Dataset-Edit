@@ -1,0 +1,238 @@
+项目阶段总结
+生成时间：2026-05-13
+工作目录：/home/lijiawei/Codex/lora_data_edit
+
+一、项目当前定位
+
+这个版本不是原始远程仓库直接状态，而是基于本地备份
+/home/lijiawei/Codex/archive/lora_data_edit
+恢复后，继续把后续需求逐步补回来的版本。
+
+整理状态：
+- 当前目录内的 `.git` 是只读空目录，Git 不能正常初始化或读取。
+- 已创建临时回滚备份：`/tmp/lora_data_edit_baseline_20260515.tgz`。
+- 已补齐 `.gitignore`，避免提交 `.venv`、models、本地 datasets 运行数据和缓存。
+- 已清理 Python 编译缓存。
+- 旧版 Tkinter 入口已归档到 `legacy/`。
+- 已将 `web_server.py` 中的任务逻辑拆到独立模块，并将前端辅助模块统一收拢到 `frontend/` 目录。
+- 已将后端入口与任务调度实现归档到 `server/`，根目录保留兼容启动/导入包装。
+- 当前 `web_app.js` 只保留入口和装配，前端辅助模块包括：
+  - `frontend/web_shared.js`
+  - `frontend/web_projects.js`
+  - `frontend/web_workspace.js`
+  - `frontend/web_image_ops.js`
+  - `frontend/web_caption.js`
+  - `frontend/web_editor.js`
+  - `frontend/web_browser.js`
+  - `frontend/web_shell.js`
+  - `frontend/web_bootstrap.js`
+
+核心代码文件：
+- server/
+- server/web_server.py
+- server/caption_workflow.py
+- server/image_process_jobs.py
+- web_server.py
+- caption_workflow.py
+- image_process_jobs.py
+- frontend/
+- frontend/web_shared.js
+- frontend/web_caption.js
+- frontend/web_projects.js
+- frontend/web_workspace.js
+- frontend/web_image_ops.js
+- frontend/web_editor.js
+- frontend/web_browser.js
+- frontend/web_shell.js
+- frontend/web_bootstrap.js
+- web_app.js
+- web_index.html
+- dataset_workspace.py
+- dataset_projects.py
+- dataset_image_processor.py
+- dataset_exporter.py
+- start.sh
+- bootstrap_env.py
+
+归档代码：
+- legacy/lora_reviewer.py
+- legacy/run_legacy.sh
+- legacy/run_legacy.bat
+
+二、已完成的主要功能
+
+1. 标注逻辑改造
+
+- 从“整块 tag”改成“自然语言 caption + 可拆分短语”模式。
+- 每个短语都能单独编辑、删除、替换。
+- 相关逻辑主要在 dataset_workspace.py。
+
+2. Viewer 与 Caption 编辑
+
+- Viewer 区支持直接编辑 caption。
+- 支持 chip 化短语编辑。
+- 支持追加短语、批量增删改、翻译、排除当前条目。
+
+3. 快捷标注
+
+- 单击直接追加到当前 caption。
+- 双击直接编辑。
+- 拖拽排序。
+- 单独存储长期保留。
+- 默认收起。
+- 输入内容所见即所得，不自动补标点。
+
+4. 工作区能力
+
+- 支持加载 control1 / control2 / control3 / result。
+- 支持输入父目录后在网页里浏览并选择子目录。
+- 支持将额外数据集合并到当前工作区，不清空已有内容。
+- 支持重扫工作区。
+
+5. 顶部主操作区
+
+- 已整理成：
+  - 选择标注引擎
+  - 标注当前
+  - 批量标注
+  - 标注配置
+  - 停止
+- 已实现“选后端后，外部按钮直接调用”的模式。
+
+6. 标注后端
+
+- 支持本地 Qwen。
+- 支持 Ollama。
+- 支持 OpenAI 兼容 API。
+
+7. OpenAI 兼容 API 配置
+
+- 支持 API URL。
+- 支持 API Key。
+- 支持手动刷新模型列表。
+- 支持自定义模型搜索/选择菜单。
+- 选择模型后菜单会自动收起。
+- API Key 已做本地持久化，存储在浏览器 localStorage。
+
+8. 项目模块
+
+- 支持保存当前项目。
+- 支持打开历史项目。
+- 支持项目缩略图。
+- 支持重命名 / 删除 / 搜索 / 排序。
+- 项目数据落在 datasets/projects。
+
+9. 图像处理
+
+- 支持批量生成预处理工作集。
+- 使用 Lanczos 缩放 + 中心裁切。
+- 默认 4 百万像素。
+- 倍数支持 16 / 32 / 64。
+- 可选择是否同时处理 control 图。
+- 处理完成后可直接载入为当前工作区。
+
+10. Viewer 单条图像处理
+
+- 支持当前条目缩放。
+- 支持当前条目“匹配结果图尺寸”。
+
+11. 图像预处理面板
+
+- 已新增“批量匹配结果尺寸”。
+- 会按每条 result 的尺寸把对应 control 批量对齐。
+- 走统一任务进度状态。
+
+12. 导出
+
+- 支持 zip 或 folder。
+- 支持用户自定义项目名。
+- 默认非破坏式导出，不改原始目录。
+- 图像可在导出时再次处理。
+- 导出目录命名为“时间戳 + 项目名 + role”。
+
+13. 数据目录统一
+
+当前代码统一使用 datasets 体系：
+- datasets/projects
+- datasets/tmp
+- datasets/exports
+- datasets/processed
+- datasets/workspaces
+
+三、当前界面与布局状态
+
+1. 现有主界面结构
+
+- 左侧：筛选与列表
+- 中间：Viewer + Caption 编辑 + 快捷标注 + 全局短语
+- 顶部：简化后的概览指标 + 标注主操作
+- 右侧：项目 / 数据 / 批量与日志 / 图像处理 / 导出
+
+2. 已完成的界面整理
+
+- 独立“概览”区域已经取消。
+- 概览内容已压缩进顶部状态和主界面指标。
+- “标注配置”不在右侧 tab 中，而是通过顶部“标注配置”按钮打开 automation 面板。
+- 原右侧 utility drawer 已改成主区域全屏页面切换；点击顶部“项目 / 数据 / 批量与日志 / 图像处理 / 导出”会进入独立页面视图，返回后回到工作台。
+- 统一任务状态区已存在，可显示：
+  - 本地模型状态
+  - API 状态
+  - Ollama 状态
+  - 批量任务状态
+  - 图像处理状态
+  - 日志
+
+四、环境与启动方式
+
+1. 启动方式
+
+- 使用 ./start.sh 启动。
+- start.sh 会：
+  - 检查 Python
+  - 自动创建当前目录下的 .venv
+  - 安装基础依赖
+  - 启动 web_server.py
+
+2. 环境脚本
+
+- bootstrap_env.py 已实现跨平台 venv 逻辑。
+- 已补充常见错误诊断，包括：
+  - Python 缺失
+  - Python 版本不匹配
+  - venv 模块缺失
+  - 网络失败
+  - SSL 证书问题
+  - 磁盘空间不足
+  - 权限问题
+
+3. 重启方式
+
+- Linux 下可用：
+  KILL_EXISTING=1 ./start.sh
+  自动杀掉占用端口的旧进程并重启。
+
+五、当前尚未完全收尾的点
+
+1. 本地 Qwen 残留清理策略
+
+- 默认模型目录已统一到项目内 `models/Qwen3.5-*`。
+- 前端模型说明已补充 hover 提示，并兼容显示旧目录 / 旧缓存来源。
+- 旧版 `models/huggingface` 残留缓存和历史模型目录的自动清理策略还没做完。
+
+2. 图像处理进一步优化
+
+- “批量匹配结果尺寸”已完成。
+- 已支持“只重采样尺寸不一致项，已匹配项直接复制”。
+- 但还没做更细的批次筛选。
+
+六、后续继续时建议优先顺序
+
+1. 先补本地 Qwen 的旧缓存 / 旧目录清理策略，避免 `models` 下长期堆积残留。
+2. 再做图像处理更细的批次筛选。
+3. 如需继续打磨，可再补页面切换动效和更细的页面级导航提示，但主结构已完成。
+
+七、下轮对话可直接使用的接续提示
+
+下轮继续时，可以直接告诉模型：
+
+“读取项目根目录 PROJECT_CONTEXT_SUMMARY.txt，然后继续收尾未完成项。优先处理本地 Qwen 旧缓存 / 旧目录清理策略，以及图像处理更细的批次筛选。” 

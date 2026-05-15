@@ -1,0 +1,5 @@
+huggingface_hub
+accelerate
+pillow
+numpy==1.26.4
+safetensors

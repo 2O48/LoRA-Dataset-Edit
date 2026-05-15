@@ -1,0 +1,20 @@
+[
+  {
+    "id": "cn-min-change",
+    "name": "中文·极简变化",
+    "content": "仅描述控制图1到结果图的变化，极简描述，中文描述。",
+    "updated_at": ""
+  },
+  {
+    "id": "cn-multi-change",
+    "name": "中文·多图差异",
+    "content": "结合所有控制图与结果图，仅描述控制图到结果图的主要变化，忽略未变化内容，极简描述，中文输出。",
+    "updated_at": ""
+  },
+  {
+    "id": "en-lora-short",
+    "name": "English·LoRA Short",
+    "content": "Write one short English caption for the difference from the control images to the result image. Focus only on visible changes.",
+    "updated_at": ""
+  }
+]
