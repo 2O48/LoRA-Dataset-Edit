@@ -50,6 +50,8 @@ def _resolve_user_path(value: str) -> Path:
     # Support Windows-style paths when the app is running under WSL/Linux.
     drive_match = re.match(r"^([a-zA-Z]):[\\/](.*)$", raw)
     if drive_match:
+        if os.name == "nt":
+            return Path(raw)
         drive = drive_match.group(1).lower()
         rest = drive_match.group(2).replace("\\", "/").strip("/")
         return Path("/mnt") / drive / rest
@@ -241,15 +243,16 @@ class DatasetWorkspace:
             self.excluded_names = set()
             result_path = self.dirs["result"]
             if result_path and result_path.is_dir():
-                for file in result_path.iterdir():
+                for file in result_path.rglob("*.txt"):
                     if not file.is_file() or file.suffix.lower() != ".txt":
                         continue
-                    match_key = self._normalize_match_key(file.stem)
+                    raw_name = self._relative_stem(result_path, file)
+                    match_key = self._normalize_match_key(raw_name)
                     group = groups.setdefault(match_key, {"paths": {}, "raw_names": {}, "txt_path": None, "txt_raw_name": ""})
                     current_name = group["txt_raw_name"]
-                    if not current_name or _natural_key(file.stem) < _natural_key(current_name):
+                    if not current_name or _natural_key(raw_name) < _natural_key(current_name):
                         group["txt_path"] = file
-                        group["txt_raw_name"] = file.stem
+                        group["txt_raw_name"] = raw_name
 
             self.files = {role: {} for role in IMAGE_ROLES}
             self.file_names = []
@@ -321,15 +324,16 @@ class DatasetWorkspace:
 
             result_path = incoming_dirs["result"]
             if result_path and result_path.is_dir():
-                for file in result_path.iterdir():
+                for file in result_path.rglob("*.txt"):
                     if not file.is_file() or file.suffix.lower() != ".txt":
                         continue
-                    match_key = self._normalize_match_key(file.stem)
+                    raw_name = self._relative_stem(result_path, file)
+                    match_key = self._normalize_match_key(raw_name)
                     group = groups.setdefault(match_key, {"paths": {}, "raw_names": {}, "txt_path": None, "txt_raw_name": ""})
                     current_name = group["txt_raw_name"]
-                    if not current_name or _natural_key(file.stem) < _natural_key(current_name):
+                    if not current_name or _natural_key(raw_name) < _natural_key(current_name):
                         group["txt_path"] = file
-                        group["txt_raw_name"] = file.stem
+                        group["txt_raw_name"] = raw_name
 
             used_names = set(self.file_names) | set(self.excluded_names)
             merged_names: list[str] = []
@@ -423,21 +427,35 @@ class DatasetWorkspace:
     def _has_caption(self, name: str) -> bool:
         return name in self.txt_files or name in self.caption_overrides
 
-    def _normalize_match_key(self, stem: str) -> str:
-        value = (stem or "").strip().lower()
+    def _normalize_match_part(self, value: str, *, strip_role_patterns: bool) -> str:
+        value = (value or "").strip().lower()
         for token in self.ignore_tokens:
             if token:
                 value = value.replace(token, " ")
 
-        previous = None
-        while previous != value:
-            previous = value
-            for pattern in ROLE_STRIP_PATTERNS:
-                value = re.sub(rf"^(?:{pattern})(?:[\s._-]+|$)", "", value)
-                value = re.sub(rf"(?:^|[\s._-]+)(?:{pattern})$", "", value)
+        if strip_role_patterns:
+            previous = None
+            while previous != value:
+                previous = value
+                for pattern in ROLE_STRIP_PATTERNS:
+                    value = re.sub(rf"^(?:{pattern})(?:[\s._-]+|$)", "", value)
+                    value = re.sub(rf"(?:^|[\s._-]+)(?:{pattern})$", "", value)
 
         value = re.sub(r"[^0-9a-z\u4e00-\u9fff]+", "", value)
-        return value or (stem or "").strip().lower()
+        return value
+
+    def _normalize_match_key(self, stem: str) -> str:
+        raw = (stem or "").strip().replace("\\", "/")
+        parts = [part for part in raw.split("/") if part]
+        if not parts:
+            return raw.lower()
+
+        normalized_parts: list[str] = []
+        last_index = len(parts) - 1
+        for index, part in enumerate(parts):
+            normalized = self._normalize_match_part(part, strip_role_patterns=index == last_index)
+            normalized_parts.append(normalized or part.strip().lower())
+        return "/".join(normalized_parts)
 
     def _pick_display_name(self, group: dict, fallback: str) -> str:
         for role in ("result", "control1", "control2", "control3"):
@@ -459,12 +477,19 @@ class DatasetWorkspace:
                 return next_name
             index += 1
 
+    def _relative_stem(self, root: Path, file: Path) -> str:
+        try:
+            relative = file.relative_to(root)
+        except ValueError:
+            relative = Path(file.name)
+        return relative.with_suffix("").as_posix()
+
     def _scan_images(self, path: Optional[Path]) -> dict[str, Path]:
         if not path or not path.is_dir():
             return {}
         return {
-            file.stem: file
-            for file in path.iterdir()
+            self._relative_stem(path, file): file
+            for file in path.rglob("*")
             if file.is_file() and file.suffix.lower() in IMAGE_EXTS
         }
 

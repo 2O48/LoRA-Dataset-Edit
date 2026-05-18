@@ -62,6 +62,8 @@ export function createBootstrapModule({
   validateApiModel,
   loadOllamaModels,
   validateOllamaModel,
+  nextAiPollDelay,
+  scheduleNextAiPoll,
   pollAiStatus,
   loadAiOptions,
   loadPromptTemplates,

@@ -7,21 +7,37 @@ if "%PORT%"=="" set PORT=8100
 if "%KILL_EXISTING%"=="" set KILL_EXISTING=0
 
 set PYTHON_CMD=
-if not "%PYTHON%"=="" (
-  where "%PYTHON%" >nul 2>nul
-  if "%errorlevel%"=="0" set PYTHON_CMD=%PYTHON%
+if exist ".venv\Scripts\python.exe" (
+  ".venv\Scripts\python.exe" -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) and sys.version_info < (3, 13) else 1)" >nul 2>nul
+  if not errorlevel 1 set PYTHON_CMD=.venv\Scripts\python.exe
 )
-if "%PYTHON_CMD%"=="" (
-  where py >nul 2>nul
-  if "%errorlevel%"=="0" set PYTHON_CMD=py -3.11
+if not "%PYTHON%"=="" (
+  if "%PYTHON_CMD%"=="" (
+    where "%PYTHON%" >nul 2>nul
+    if not errorlevel 1 (
+      "%PYTHON%" -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) and sys.version_info < (3, 13) else 1)" >nul 2>nul
+      if not errorlevel 1 set PYTHON_CMD=%PYTHON%
+    )
+  )
 )
 if "%PYTHON_CMD%"=="" (
   where python >nul 2>nul
-  if "%errorlevel%"=="0" set PYTHON_CMD=python
+  if not errorlevel 1 (
+    python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) and sys.version_info < (3, 13) else 1)" >nul 2>nul
+    if not errorlevel 1 set PYTHON_CMD=python
+  )
+)
+if "%PYTHON_CMD%"=="" (
+  where py >nul 2>nul
+  if not errorlevel 1 (
+    py -3.11 -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) and sys.version_info < (3, 13) else 1)" >nul 2>nul
+    if not errorlevel 1 set PYTHON_CMD=py -3.11
+  )
 )
 if "%PYTHON_CMD%"=="" (
   echo Python was not found.
   echo Install Python 3.11 from https://www.python.org/downloads/ and enable "Add Python to PATH".
+  echo If a project .venv already exists, make sure .venv\Scripts\python.exe is usable.
   exit /b 1
 )
 

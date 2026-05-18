@@ -543,6 +543,8 @@ const { restorePersistedSettings, bindSettingsPersistence, bindEvents, bootstrap
   validateApiModel,
   loadOllamaModels,
   validateOllamaModel,
+  nextAiPollDelay,
+  scheduleNextAiPoll,
   pollAiStatus,
   loadAiOptions,
   loadPromptTemplates,
