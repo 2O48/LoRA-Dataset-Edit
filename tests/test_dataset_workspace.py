@@ -74,6 +74,25 @@ class DatasetWorkspaceTextTests(unittest.TestCase):
             self.assertEqual(summary["dirs"]["control1"], "")
             self.assertEqual(summary["counts"]["control1"], 0)
 
+    def test_open_dirs_scans_nested_image_paths(self):
+        workspace = DatasetWorkspace()
+        with tempfile.TemporaryDirectory() as control_dir, tempfile.TemporaryDirectory() as result_dir:
+            control_path = Path(control_dir)
+            result_path = Path(result_dir)
+            (control_path / "style" / "day").mkdir(parents=True)
+            (result_path / "style" / "day").mkdir(parents=True)
+            Image.new("RGB", (32, 32), (10, 20, 30)).save(control_path / "style" / "day" / "sample.png")
+            Image.new("RGB", (32, 32), (30, 20, 10)).save(result_path / "style" / "day" / "sample.png")
+            (result_path / "style" / "day" / "sample.txt").write_text("nested caption", encoding="utf-8")
+
+            workspace.open_dirs(control1_dir=str(control_path), result_dir=str(result_path), control_count=1)
+
+            self.assertIn("style/day/sample", workspace.file_names)
+            item = workspace.get_item("style/day/sample")
+            self.assertEqual(item["text"], "nested caption")
+            self.assertTrue(item["exists"]["control1"])
+            self.assertTrue(item["exists"]["result"])
+
     def test_merge_dirs_appends_additional_dataset(self):
         workspace = DatasetWorkspace()
         with tempfile.TemporaryDirectory() as base_control, \
