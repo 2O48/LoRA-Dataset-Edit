@@ -35,7 +35,7 @@ export function createImageOpsModule({
       return;
     }
     if (process.status === "error") {
-      refs.processStatus.textContent = `${modeLabel}失败，查看任务日志。`;
+      refs.processStatus.textContent = `${modeLabel}失败，查看启动终端输出。`;
       return;
     }
     refs.processStatus.textContent = `${process.status || "处理中"} ${process.done || 0}/${process.total || 0}`;

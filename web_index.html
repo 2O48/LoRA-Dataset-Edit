@@ -60,7 +60,7 @@
         <nav class="utility-actions" id="utilityActions" aria-label="配置面板">
           <button class="utility-tab" data-panel="projects" type="button">项目</button>
           <button class="utility-tab" data-panel="workspace" type="button">数据</button>
-          <button class="utility-tab" data-panel="batch" type="button">批量与日志</button>
+          <button class="utility-tab" data-panel="batch" type="button">批量与状态</button>
           <button class="utility-tab" data-panel="process" type="button">图像处理</button>
           <button class="utility-tab" data-panel="export" type="button">导出</button>
         </nav>
@@ -261,6 +261,10 @@
               <label class="toolbar-field wide-field">
                 <span>匹配忽略项</span>
                 <input id="ignoreTokensInput" placeholder="例如：_result, _output, -edited, 空格分隔也可">
+              </label>
+              <label class="checkbox-row wide-field">
+                <input id="autoOpenLastWorkspace" type="checkbox">
+                <span>启动时打开上次加载的数据目录</span>
               </label>
               <label class="toolbar-field" data-control-field="1">
                 <span>控制图 1</span>
@@ -502,10 +506,16 @@
                 <span>Ollama URL</span>
                 <input id="ollamaBaseUrl" placeholder="http://127.0.0.1:11434">
               </label>
-              <label>
+              <label class="model-picker-field">
                 <span>模型名</span>
-                <input id="ollamaModelName" list="ollamaModelSuggestions" placeholder="qwen2.5vl:7b / minicpm-v / your-model">
-                <datalist id="ollamaModelSuggestions"></datalist>
+                <div class="model-picker" id="ollamaModelPicker">
+                  <input id="ollamaModelName" placeholder="qwen2.5vl:7b / minicpm-v / your-model" autocomplete="off">
+                  <button class="model-picker-button" id="ollamaModelMenuBtn" type="button">选择</button>
+                  <div class="model-picker-menu" id="ollamaModelMenu" hidden>
+                    <input id="ollamaModelSearch" placeholder="搜索模型">
+                    <div class="model-picker-list" id="ollamaModelList"></div>
+                  </div>
+                </div>
               </label>
             </div>
 
@@ -575,7 +585,7 @@
             <div class="card-head">
               <div>
                 <p class="card-kicker">Activity</p>
-                <h2>任务状态与日志</h2>
+                <h2>任务状态</h2>
               </div>
               <p class="card-note">本地模型、API 标注、Ollama 和批量过程的统一状态区。</p>
             </div>
@@ -597,7 +607,6 @@
               <div class="progress-bar" id="aiProgressBar"></div>
             </div>
             <div class="status-line" id="aiStatusLine">等待启动服务</div>
-            <div class="log-panel" id="aiLogPanel"></div>
           </article>
         </section>
 

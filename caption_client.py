@@ -74,7 +74,9 @@ class CaptionServiceClient:
         self.supported_models: list[dict] = []
 
     def _append_log(self, message: str, level: str = "info"):
-        self._logs.append({"ts": time.strftime("%H:%M:%S"), "level": level, "message": message})
+        ts = time.strftime("%H:%M:%S")
+        self._logs.append({"ts": ts, "level": level, "message": message})
+        print(f"[{ts}] [local] [{level}] {message}", flush=True)
 
     def snapshot(self) -> dict:
         with self._lock:
@@ -239,6 +241,8 @@ class CaptionServiceClient:
         *,
         image_path: str = "",
         image_paths: Optional[list[str]] = None,
+        image_name: str = "",
+        image_file_names: Optional[list[str]] = None,
         model: str,
         mode: str = "natural",
         prompt: str = "",
@@ -260,6 +264,8 @@ class CaptionServiceClient:
                 "id": req_id,
                 "path": image_path,
                 "paths": list(image_paths or ([image_path] if image_path else [])),
+                "image_name": image_name,
+                "image_file_names": list(image_file_names or []),
                 "model": model,
                 "mode": mode,
                 "prompt": prompt,
@@ -293,7 +299,9 @@ class DependencyInstaller:
         self.target_python = str(project_python())
 
     def _append(self, message: str, level: str = "info"):
-        self.logs.append({"ts": time.strftime("%H:%M:%S"), "level": level, "message": message})
+        ts = time.strftime("%H:%M:%S")
+        self.logs.append({"ts": ts, "level": level, "message": message})
+        print(f"[{ts}] [install] [{level}] {message}", flush=True)
 
     def snapshot(self) -> dict:
         with self._lock:

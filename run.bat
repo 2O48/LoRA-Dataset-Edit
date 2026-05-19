@@ -5,6 +5,7 @@ cd /d %~dp0
 if "%HOST%"=="" set HOST=127.0.0.1
 if "%PORT%"=="" set PORT=8100
 if "%KILL_EXISTING%"=="" set KILL_EXISTING=0
+set PYTHONUNBUFFERED=1
 
 set PYTHON_CMD=
 if exist ".venv\Scripts\python.exe" (
@@ -66,4 +67,4 @@ if not "%errorlevel%"=="0" (
 )
 
 for /f "usebackq delims=" %%p in (`%PYTHON_CMD% bootstrap_env.py --print-python`) do set VENV_PYTHON=%%p
-"%VENV_PYTHON%" web_server.py --host "%HOST%" --port "%PORT%"
+"%VENV_PYTHON%" -u web_server.py --host "%HOST%" --port "%PORT%"

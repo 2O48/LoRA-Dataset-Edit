@@ -6,6 +6,7 @@ cd "$(dirname "$0")"
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-8100}"
 KILL_EXISTING="${KILL_EXISTING:-0}"
+export PYTHONUNBUFFERED=1
 
 find_python() {
   if [ -n "${PYTHON:-}" ] && command -v "$PYTHON" >/dev/null 2>&1; then
@@ -58,4 +59,4 @@ if ! "$PYTHON_CMD" bootstrap_env.py --ensure-base; then
 fi
 
 VENV_PYTHON="$("$PYTHON_CMD" bootstrap_env.py --print-python)"
-exec "$VENV_PYTHON" web_server.py --host "$HOST" --port "$PORT"
+exec "$VENV_PYTHON" -u web_server.py --host "$HOST" --port "$PORT"

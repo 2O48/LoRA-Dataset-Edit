@@ -17,9 +17,15 @@ from api_caption_client import DEFAULT_PROMPTS
 from caption_image_preprocess import prepare_caption_images
 
 
-def _normalize_ollama_endpoint(base_url: str) -> str:
+def _normalize_base_url(base_url: str) -> str:
     value = (base_url or "").strip() or "http://127.0.0.1:11434"
-    value = value.rstrip("/")
+    if not value.startswith(("http://", "https://")):
+        value = f"http://{value}"
+    return value.rstrip("/")
+
+
+def _normalize_ollama_endpoint(base_url: str) -> str:
+    value = _normalize_base_url(base_url)
     if value.endswith("/api/chat"):
         return value
     if value.endswith("/api"):
@@ -28,8 +34,7 @@ def _normalize_ollama_endpoint(base_url: str) -> str:
 
 
 def _tags_endpoint(base_url: str) -> str:
-    value = (base_url or "").strip() or "http://127.0.0.1:11434"
-    value = value.rstrip("/")
+    value = _normalize_base_url(base_url)
     if value.endswith("/api/chat"):
         value = value[: -len("/chat")]
     if value.endswith("/api"):
@@ -59,6 +64,20 @@ def _compact_text(text: str) -> str:
     return " ".join((text or "").split())
 
 
+def _prompt_with_image_name_context(prompt: str, *, image_name: str = "", image_file_names: list[str] | None = None) -> str:
+    lines: list[str] = []
+    clean_name = (image_name or "").strip()
+    if clean_name:
+        lines.append(f"Dataset item name: {clean_name}")
+    clean_files = [str(name).strip() for name in (image_file_names or []) if str(name).strip()]
+    if clean_files:
+        label = "Image file names" if len(clean_files) > 1 else "Image file name"
+        lines.append(f"{label}: {', '.join(clean_files)}")
+    if not lines:
+        return prompt
+    return f"{prompt.rstrip()}\n\nFile name context:\n" + "\n".join(lines)
+
+
 class OllamaCaptionClient:
     def __init__(self):
         self._lock = RLock()
@@ -70,13 +89,15 @@ class OllamaCaptionClient:
         self.last_backend = "Ollama"
 
     def _append_log(self, message: str, level: str = "info"):
+        ts = time.strftime("%H:%M:%S")
         self._logs.append(
             {
-                "ts": time.strftime("%H:%M:%S"),
+                "ts": ts,
                 "level": level,
                 "message": message,
             }
         )
+        print(f"[{ts}] [ollama] [{level}] {message}", flush=True)
 
     def snapshot(self) -> dict:
         with self._lock:
@@ -109,6 +130,8 @@ class OllamaCaptionClient:
         *,
         image_path: str,
         image_paths: list[str] | None = None,
+        image_name: str = "",
+        image_file_names: list[str] | None = None,
         base_url: str,
         model: str,
         mode: str = "natural",
@@ -123,17 +146,23 @@ class OllamaCaptionClient:
         all_image_paths = list(image_paths or ([image_path] if image_path else []))
         if not all_image_paths:
             raise RuntimeError("At least one image is required.")
+        resolved_prompt = _prompt_with_image_name_context(
+            _prompt_for_mode(mode, prompt),
+            image_name=image_name,
+            image_file_names=image_file_names or [Path(path).name for path in all_image_paths if path],
+        )
         with prepare_caption_images(all_image_paths) as prepared_paths:
             payload = {
                 "model": model.strip(),
                 "stream": False,
+                "think": False,
                 "options": {
                     "num_predict": int(max_tokens or 512),
                 },
                 "messages": [
                     {
                         "role": "user",
-                        "content": _prompt_for_mode(mode, prompt),
+                        "content": resolved_prompt,
                         "images": [_image_base64(path) for path in prepared_paths],
                     }
                 ],

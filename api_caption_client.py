@@ -121,6 +121,20 @@ def _compact_text(text: str) -> str:
     return " ".join((text or "").split())
 
 
+def _prompt_with_image_name_context(prompt: str, *, image_name: str = "", image_file_names: list[str] | None = None) -> str:
+    lines: list[str] = []
+    clean_name = (image_name or "").strip()
+    if clean_name:
+        lines.append(f"Dataset item name: {clean_name}")
+    clean_files = [str(name).strip() for name in (image_file_names or []) if str(name).strip()]
+    if clean_files:
+        label = "Image file names" if len(clean_files) > 1 else "Image file name"
+        lines.append(f"{label}: {', '.join(clean_files)}")
+    if not lines:
+        return prompt
+    return f"{prompt.rstrip()}\n\nFile name context:\n" + "\n".join(lines)
+
+
 def _extract_model_ids(payload) -> list[str]:
     if isinstance(payload, dict):
         if isinstance(payload.get("data"), list):
@@ -161,13 +175,15 @@ class APICaptionClient:
         self.last_backend = "OpenAI Compatible"
 
     def _append_log(self, message: str, level: str = "info"):
+        ts = time.strftime("%H:%M:%S")
         self._logs.append(
             {
-                "ts": time.strftime("%H:%M:%S"),
+                "ts": ts,
                 "level": level,
                 "message": message,
             }
         )
+        print(f"[{ts}] [api] [{level}] {message}", flush=True)
 
     def snapshot(self) -> dict:
         with self._lock:
@@ -186,6 +202,8 @@ class APICaptionClient:
         *,
         image_path: str,
         image_paths: list[str] | None = None,
+        image_name: str = "",
+        image_file_names: list[str] | None = None,
         api_base_url: str,
         api_key: str,
         model: str,
@@ -198,10 +216,14 @@ class APICaptionClient:
             raise RuntimeError("API model is required.")
 
         endpoint = _normalize_endpoint(api_base_url)
-        resolved_prompt = _prompt_for_mode(mode, prompt)
         all_image_paths = list(image_paths or ([image_path] if image_path else []))
         if not all_image_paths:
             raise RuntimeError("At least one image is required.")
+        resolved_prompt = _prompt_with_image_name_context(
+            _prompt_for_mode(mode, prompt),
+            image_name=image_name,
+            image_file_names=image_file_names or [Path(path).name for path in all_image_paths if path],
+        )
         user_content = [{"type": "text", "text": resolved_prompt}]
         with prepare_caption_images(all_image_paths) as prepared_paths:
             for path in prepared_paths:

@@ -118,9 +118,38 @@ export function createCaptionModule({
   }
 
   function renderOllamaSuggestions() {
-    refs.ollamaModelSuggestions.innerHTML = state.ollamaModels
-      .map((name) => `<option value="${name}"></option>`)
-      .join("");
+    if (!refs.ollamaModelList) return;
+    const query = state.ollamaModelQuery || "";
+    const currentValue = refs.ollamaModelName.value.trim();
+    const models = state.ollamaModels.filter((name) => modelMatchesQuery(name, query));
+    refs.ollamaModelList.textContent = "";
+
+    if (currentValue && modelMatchesQuery(currentValue, query) && !models.includes(currentValue)) {
+      const customButton = document.createElement("button");
+      customButton.type = "button";
+      customButton.className = "model-picker-option custom";
+      customButton.textContent = `使用当前输入：${currentValue}`;
+      customButton.addEventListener("click", () => selectOllamaModel(currentValue));
+      refs.ollamaModelList.appendChild(customButton);
+    }
+
+    if (!models.length) {
+      const empty = document.createElement("div");
+      empty.className = "model-picker-empty";
+      empty.textContent = state.ollamaModels.length ? "没有匹配的模型" : "读取模型后可在这里选择";
+      refs.ollamaModelList.appendChild(empty);
+      return;
+    }
+
+    for (const name of models) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "model-picker-option";
+      button.classList.toggle("active", name === currentValue);
+      button.textContent = name;
+      button.addEventListener("click", () => selectOllamaModel(name));
+      refs.ollamaModelList.appendChild(button);
+    }
   }
 
   function modelMatchesQuery(name, query) {
@@ -138,6 +167,19 @@ export function createCaptionModule({
     refs.apiModelName.value = name;
     saveStored(STORAGE_KEYS.apiModelName, name);
     closeApiModelMenu();
+  }
+
+  function closeOllamaModelMenu() {
+    if (!refs.ollamaModelMenu) return;
+    state.ollamaModelMenuOpen = false;
+    refs.ollamaModelMenu.hidden = true;
+    refs.ollamaModelMenuBtn?.setAttribute("aria-expanded", "false");
+  }
+
+  function selectOllamaModel(name) {
+    refs.ollamaModelName.value = name;
+    saveStored(STORAGE_KEYS.ollamaModelName, name);
+    closeOllamaModelMenu();
   }
 
   function renderApiModelSuggestions() {
@@ -186,6 +228,17 @@ export function createCaptionModule({
     if (focusSearch) refs.apiModelSearch.focus();
   }
 
+  function openOllamaModelMenu({ focusSearch = true } = {}) {
+    if (!refs.ollamaModelMenu) return;
+    state.ollamaModelMenuOpen = true;
+    refs.ollamaModelMenu.hidden = false;
+    refs.ollamaModelMenuBtn?.setAttribute("aria-expanded", "true");
+    state.ollamaModelQuery = "";
+    refs.ollamaModelSearch.value = "";
+    renderOllamaSuggestions();
+    if (focusSearch) refs.ollamaModelSearch.focus();
+  }
+
   function summarizeRemoteService(service, idleLabel) {
     if (service.last_model) {
       return `${service.status} · ${service.last_model}`;
@@ -212,7 +265,6 @@ export function createCaptionModule({
       setOptionalText(refs.ollamaAiStatusText, "待命");
       setAiStatusLine("等待启动服务");
       refs.aiProgressBar.style.width = "0%";
-      refs.aiLogPanel.textContent = "";
       renderImageProcessStatus(null);
       return;
     }
@@ -279,27 +331,6 @@ export function createCaptionModule({
               : ai.service.progress_pct || 0;
     refs.aiProgressBar.style.width = `${Math.max(0, Math.min(progress, 100))}%`;
 
-    const logEntries = [
-      ...ai.installer.logs.map((row) => ({ ...row, source: "install" })),
-      ...ai.service.logs.map((row) => ({ ...row, source: "local" })),
-      ...ai.api_service.logs.map((row) => ({ ...row, source: "api" })),
-      ...ai.ollama_service.logs.map((row) => ({ ...row, source: "ollama" })),
-      ...ai.batch.logs.map((row) => ({ ...row, source: "batch" })),
-      ...(ai.image_process?.logs || []).map((row) => ({ ...row, source: "image" })),
-    ]
-      .slice(-180)
-      .sort((a, b) => `${a.ts}${a.source}`.localeCompare(`${b.ts}${b.source}`));
-
-    refs.aiLogPanel.textContent = "";
-    for (const row of logEntries) {
-      const levelClass =
-        row.level === "ok" ? "ok" : row.level === "warn" ? "warn" : row.level === "error" ? "error" : "";
-      const line = document.createElement("div");
-      line.className = `log-line ${levelClass}`.trim();
-      line.textContent = `[${row.ts}] (${row.source}) ${row.message}`;
-      refs.aiLogPanel.appendChild(line);
-    }
-    refs.aiLogPanel.scrollTop = refs.aiLogPanel.scrollHeight;
   }
 
   function localCaptionPayload() {
@@ -406,7 +437,9 @@ export function createCaptionModule({
     renderOllamaSuggestions();
     if (!refs.ollamaModelName.value.trim() && state.ollamaModels.length) {
       refs.ollamaModelName.value = state.ollamaModels[0];
+      saveStored(STORAGE_KEYS.ollamaModelName, refs.ollamaModelName.value.trim());
     }
+    if (state.ollamaModels.length) openOllamaModelMenu({ focusSearch: false });
     setAiStatusLine(state.ollamaModels.length ? `已读取 ${state.ollamaModels.length} 个 Ollama 模型` : "Ollama 未返回模型列表");
   }
 
@@ -560,6 +593,8 @@ export function createCaptionModule({
     openApiModelMenu,
     closeApiModelMenu,
     renderApiModelSuggestions,
+    openOllamaModelMenu,
+    closeOllamaModelMenu,
     renderAiStatus,
     localCaptionPayload,
     apiCaptionPayload,

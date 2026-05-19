@@ -24,12 +24,43 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(47, 111, 115, 0.38) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  min-height: 44px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(47, 111, 115, 0.34);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(47, 111, 115, 0.56);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 html,
 body {
   margin: 0;
-  min-height: 100%;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 body {
@@ -75,8 +106,13 @@ button {
 .site-shell {
   position: relative;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 18px;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
   padding: 24px;
+  overflow: hidden;
 }
 
 .command-bar,
@@ -284,13 +320,17 @@ label span,
 .workbench-shell {
   display: grid;
   gap: 18px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .workbench-layout {
   display: grid;
   grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .workbench-shell.page-open .workbench-layout {
@@ -429,12 +469,11 @@ textarea:focus {
 }
 
 .list-card {
-  position: sticky;
-  top: 24px;
-  height: calc(100vh - 132px);
-  min-height: 520px;
+  min-height: 0;
+  height: 100%;
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .segmented {
@@ -469,8 +508,7 @@ textarea:focus {
 }
 
 .item-list,
-.global-tag-list,
-.log-panel {
+.global-tag-list {
   overflow: auto;
 }
 
@@ -484,7 +522,6 @@ textarea:focus {
 .item-card,
 .image-card,
 .global-tag-row,
-.log-panel,
 .metric-tile,
 .summary-row,
 .note-bar,
@@ -565,15 +602,41 @@ textarea:focus {
 
 .browser-main {
   gap: 18px;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-rows: minmax(0, 1fr) minmax(168px, 0.42fr);
 }
 
 .browser-detail-grid {
   grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.viewer-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.edit-card {
+  min-height: 0;
+  overflow: auto;
+}
+
+.global-tags-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .viewer-grid {
   display: grid;
   gap: 12px;
+  min-height: 0;
+  grid-auto-rows: minmax(0, 1fr);
 }
 
 .viewer-grid[data-mode="one"] {
@@ -595,7 +658,7 @@ textarea:focus {
 .image-card {
   display: flex;
   flex-direction: column;
-  min-height: 330px;
+  min-height: 0;
   overflow: hidden;
   border-radius: var(--radius-lg);
   background: rgba(255, 255, 252, 0.58);
@@ -623,18 +686,37 @@ textarea:focus {
   flex: 1;
   display: grid;
   place-items: center;
-  padding: 12px;
+  padding: 0;
+  min-height: 0;
+  overflow: hidden;
   background:
     linear-gradient(135deg, rgba(47, 111, 115, 0.06), rgba(255, 255, 252, 0.12)),
     rgba(255, 255, 252, 0.22);
 }
 
 .image-stage img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
   border-radius: var(--radius-md);
   background: rgba(255, 255, 252, 0.38);
+  cursor: zoom-in;
+}
+
+.viewer-grid[data-image-mode="actual"] .image-stage {
+  place-items: start;
+  overflow: auto;
+}
+
+.viewer-grid[data-image-mode="actual"] .image-stage img {
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  object-fit: fill;
+  cursor: zoom-out;
 }
 
 .placeholder {
@@ -795,7 +877,9 @@ textarea:focus {
   display: grid;
   align-content: start;
   gap: 8px;
-  max-height: 430px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .global-tag-row {
@@ -820,7 +904,9 @@ textarea:focus {
 .utility-page-shell {
   display: none;
   gap: 12px;
-  min-height: calc(100vh - 180px);
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
   padding: 22px;
   border-radius: var(--radius-xl);
   background:
@@ -866,6 +952,20 @@ textarea:focus {
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
+}
+
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.checkbox-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
 }
 
 .projects-panel.active {
@@ -1219,36 +1319,11 @@ textarea:focus {
   font-size: 13px;
 }
 
-.log-panel {
-  min-height: 180px;
-  max-height: 280px;
-  margin-top: 12px;
-  padding: 12px;
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 252, 0.62);
-  color: var(--ink-soft);
-  font-family: "Cascadia Mono", "Consolas", monospace;
-  font-size: 12px;
-  line-height: 1.72;
-}
-
 .activity-card.elevated {
   border-color: rgba(47, 111, 115, 0.28);
   background:
     linear-gradient(180deg, rgba(47, 111, 115, 0.08), rgba(255, 255, 252, 0.72)),
     var(--paper);
-}
-
-.log-line.ok {
-  color: var(--ok);
-}
-
-.log-line.warn {
-  color: var(--warn);
-}
-
-.log-line.error {
-  color: var(--danger);
 }
 
 @media (max-width: 1520px) {
@@ -1296,6 +1371,10 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
+  .workbench-layout {
+    grid-template-rows: minmax(138px, 0.34fr) minmax(0, 1fr);
+  }
+
   .command-status,
   .command-caption,
   .utility-actions {
@@ -1312,14 +1391,12 @@ textarea:focus {
   }
 
   .list-card {
-    position: relative;
-    top: auto;
-    height: auto;
+    height: 100%;
     min-height: 0;
   }
 
   .item-list {
-    max-height: 420px;
+    max-height: none;
   }
 
   .viewer-grid[data-mode="two"],
@@ -1332,6 +1409,7 @@ textarea:focus {
 @media (max-width: 640px) {
   .site-shell {
     padding: 12px;
+    gap: 12px;
   }
 
   .command-bar,
@@ -1379,6 +1457,6 @@ textarea:focus {
   }
 
   .image-card {
-    min-height: 260px;
+    min-height: 0;
   }
 }

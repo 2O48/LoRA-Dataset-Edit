@@ -27,14 +27,16 @@ class ImageProcessManager:
         self.logs: list[dict] = []
 
     def _log(self, message: str, level: str = "info"):
+        ts = time.strftime("%H:%M:%S")
         self.logs.append(
             {
-                "ts": time.strftime("%H:%M:%S"),
+                "ts": ts,
                 "level": level,
                 "message": message,
             }
         )
         self.logs = self.logs[-300:]
+        print(f"[{ts}] [image] [{level}] {message}", flush=True)
 
     def snapshot(self) -> dict:
         with self._lock:

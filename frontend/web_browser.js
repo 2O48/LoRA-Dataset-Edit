@@ -103,6 +103,38 @@ export function createBrowserModule({
     activeCard.scrollIntoView({ block, inline: "nearest" });
   }
 
+  function updateViewerImageFit(img) {
+    if (!img) return;
+    const stage = img.closest(".image-stage");
+    if (!stage || !img.naturalWidth || !img.naturalHeight) return;
+    const stageStyle = window.getComputedStyle(stage);
+    const horizontalPadding = parseFloat(stageStyle.paddingLeft || "0") + parseFloat(stageStyle.paddingRight || "0");
+    const verticalPadding = parseFloat(stageStyle.paddingTop || "0") + parseFloat(stageStyle.paddingBottom || "0");
+    const stageWidth = Math.max(0, stage.clientWidth - horizontalPadding);
+    const stageHeight = Math.max(0, stage.clientHeight - verticalPadding);
+    if (!stageWidth || !stageHeight) return;
+
+    if (state.viewerImageMode === "actual") {
+      img.style.width = `${img.naturalWidth}px`;
+      img.style.height = `${img.naturalHeight}px`;
+      return;
+    }
+
+    const scale = Math.min(stageWidth / img.naturalWidth, stageHeight / img.naturalHeight);
+    img.style.width = `${Math.max(1, Math.floor(img.naturalWidth * scale))}px`;
+    img.style.height = `${Math.max(1, Math.floor(img.naturalHeight * scale))}px`;
+  }
+
+  function updateAllViewerImageFits() {
+    refs.viewerGrid.querySelectorAll(".image-stage img").forEach(updateViewerImageFit);
+  }
+
+  function ensureViewerResizeObserver() {
+    if (state.viewerResizeObserver || typeof ResizeObserver === "undefined") return;
+    state.viewerResizeObserver = new ResizeObserver(() => updateAllViewerImageFits());
+    state.viewerResizeObserver.observe(refs.viewerGrid);
+  }
+
   function renderItemList() {
     refs.itemList.textContent = "";
     refs.listStats.textContent = `${state.items.length} 项`;
@@ -173,7 +205,9 @@ export function createBrowserModule({
 
   function renderViewer() {
     const item = state.currentItem;
+    ensureViewerResizeObserver();
     refs.viewerGrid.dataset.mode = state.viewMode;
+    refs.viewerGrid.dataset.imageMode = state.viewerImageMode || "fit";
     refs.currentName.textContent = item ? item.name : "未选择图片";
     refs.currentMeta.textContent = item
       ? `TXT: ${item.exists.txt ? "已存在" : "未创建"} · ${activeControlRoles()
@@ -212,6 +246,12 @@ export function createBrowserModule({
       const img = document.createElement("img");
       img.src = imageUrl(role, item.name);
       img.alt = item.name;
+      img.title = state.viewerImageMode === "actual" ? "点击切换为完整显示" : "点击切换为 100% 大小";
+      img.addEventListener("load", () => updateViewerImageFit(img));
+      img.addEventListener("click", () => {
+        state.viewerImageMode = state.viewerImageMode === "actual" ? "fit" : "actual";
+        renderViewer();
+      });
       stage.appendChild(img);
       const size = item.resolution[role];
       resLabel.textContent = Array.isArray(size) ? `${size[0]}×${size[1]}` : "";
@@ -248,6 +288,7 @@ export function createBrowserModule({
     }
 
     renderSelectionSummary();
+    updateAllViewerImageFits();
   }
 
   function shouldIgnoreListArrowNavigation(target) {
@@ -333,16 +374,28 @@ export function createBrowserModule({
     renderWorkspaceSummary();
   }
 
-  async function loadWorkspace() {
-    const data = await apiPost("/api/workspace/open", {
+  function workspaceOpenPayloadFromInputs() {
+    return {
       control1_dir: refs.control1Dir.value.trim(),
       control2_dir: refs.control2Dir.value.trim(),
       control3_dir: refs.control3Dir.value.trim(),
       result_dir: refs.resultDir.value.trim(),
       control_count: Number(refs.controlCount.value || 1),
       ignore_tokens: refs.ignoreTokensInput.value.trim(),
-    });
+    };
+  }
+
+  function saveLastWorkspaceOpenPayload(payload) {
+    const hasDirectory = ["control1_dir", "control2_dir", "control3_dir", "result_dir"].some((key) => payload[key]);
+    if (!hasDirectory) return;
+    saveStored(STORAGE_KEYS.lastWorkspaceDirs, JSON.stringify(payload));
+  }
+
+  async function loadWorkspace() {
+    const payload = workspaceOpenPayloadFromInputs();
+    const data = await apiPost("/api/workspace/open", payload);
     applyWorkspaceSummary(data.workspace);
+    saveLastWorkspaceOpenPayload(payload);
     await refreshItems();
     closeUtilityPanel();
   }

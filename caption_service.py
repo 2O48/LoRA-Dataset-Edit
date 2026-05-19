@@ -381,7 +381,30 @@ def _build_prompt(mode: str, custom_prompt: str) -> str:
     return QWEN_PROMPTS.get((mode or "natural").strip().lower(), QWEN_PROMPTS["natural"])
 
 
-def run_qwen(image_paths: list[str], *, mode: str, prompt: str, max_new_tokens: int, thinking: bool):
+def _prompt_with_image_name_context(prompt: str, *, image_name: str = "", image_file_names: list[str] | None = None) -> str:
+    lines: list[str] = []
+    clean_name = (image_name or "").strip()
+    if clean_name:
+        lines.append(f"Dataset item name: {clean_name}")
+    clean_files = [str(name).strip() for name in (image_file_names or []) if str(name).strip()]
+    if clean_files:
+        label = "Image file names" if len(clean_files) > 1 else "Image file name"
+        lines.append(f"{label}: {', '.join(clean_files)}")
+    if not lines:
+        return prompt
+    return f"{prompt.rstrip()}\n\nFile name context:\n" + "\n".join(lines)
+
+
+def run_qwen(
+    image_paths: list[str],
+    *,
+    mode: str,
+    prompt: str,
+    image_name: str = "",
+    image_file_names: list[str] | None = None,
+    max_new_tokens: int,
+    thinking: bool,
+):
     import re
     import torch
 
@@ -390,7 +413,12 @@ def run_qwen(image_paths: list[str], *, mode: str, prompt: str, max_new_tokens: 
     if not image_paths:
         raise RuntimeError("No images provided for Qwen captioning.")
 
-    full_prompt = f"{QWEN_SYSTEM_PROMPT}\n\n{_build_prompt(mode, prompt)}"
+    prompt_text = _prompt_with_image_name_context(
+        _build_prompt(mode, prompt),
+        image_name=image_name,
+        image_file_names=image_file_names or [Path(path).name for path in image_paths if path],
+    )
+    full_prompt = f"{QWEN_SYSTEM_PROMPT}\n\n{prompt_text}"
     contents = []
     for image_path in image_paths:
         contents.append({"type": "image", "image": str(image_path)})
@@ -444,6 +472,8 @@ def handle_caption(req: dict):
     model = req.get("model", "qwen3.5-4b")
     mode = req.get("mode", "natural")
     req_id = req.get("id", "")
+    image_name = str(req.get("image_name", "") or "")
+    image_file_names = [str(item) for item in (req.get("image_file_names") or []) if item]
 
     image_paths = [str(item) for item in raw_paths if item and os.path.exists(str(item))]
     if not image_paths and path and os.path.exists(path):
@@ -463,6 +493,8 @@ def handle_caption(req: dict):
                 prepared_paths,
                 mode=mode,
                 prompt=req.get("prompt", ""),
+                image_name=image_name,
+                image_file_names=image_file_names or [Path(path).name for path in image_paths if path],
                 max_new_tokens=int(req.get("max_tokens", 512)),
                 thinking=bool(req.get("thinking", False)),
             )

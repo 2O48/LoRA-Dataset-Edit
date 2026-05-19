@@ -18,6 +18,9 @@ export function createBootstrapModule({
   openApiModelMenu,
   closeApiModelMenu,
   renderApiModelSuggestions,
+  openOllamaModelMenu,
+  closeOllamaModelMenu,
+  renderOllamaSuggestions,
   renderProjects,
   renderViewer,
   renderTags,
@@ -32,6 +35,7 @@ export function createBootstrapModule({
   browseWorkspacePath,
   applyWorkspaceBrowserPath,
   setWorkspaceBrowserTarget,
+  applyWorkspaceSummary,
   refreshItems,
   selectRelativeItem,
   shouldIgnoreListArrowNavigation,
@@ -81,6 +85,9 @@ export function createBootstrapModule({
   function restorePersistedSettings() {
     refs.controlCount.value = readStored(STORAGE_KEYS.controlCount, "1");
     refs.ignoreTokensInput.value = readStored(STORAGE_KEYS.ignoreTokens, "");
+    if (refs.autoOpenLastWorkspace) {
+      refs.autoOpenLastWorkspace.checked = readStored(STORAGE_KEYS.autoOpenLastWorkspace, "false") === "true";
+    }
     refs.workspaceBrowserRoot.value = readStored(STORAGE_KEYS.workspaceBrowserRoot, "");
     restoreSelectValue(refs.exportTargetPixels, STORAGE_KEYS.exportTargetPixels, "4");
     restoreSelectValue(refs.exportSizeMultiple, STORAGE_KEYS.exportSizeMultiple, "16");
@@ -107,6 +114,9 @@ export function createBootstrapModule({
     });
     refs.ignoreTokensInput.addEventListener("change", () => {
       saveStored(STORAGE_KEYS.ignoreTokens, refs.ignoreTokensInput.value.trim());
+    });
+    refs.autoOpenLastWorkspace?.addEventListener("change", () => {
+      saveStored(STORAGE_KEYS.autoOpenLastWorkspace, refs.autoOpenLastWorkspace.checked ? "true" : "false");
     });
     refs.workspaceBrowserRoot.addEventListener("change", () => {
       saveStored(STORAGE_KEYS.workspaceBrowserRoot, refs.workspaceBrowserRoot.value.trim());
@@ -156,12 +166,48 @@ export function createBootstrapModule({
     refs.apiPrompt.addEventListener("change", () => saveStored(STORAGE_KEYS.apiPrompt, refs.apiPrompt.value));
 
     refs.ollamaBaseUrl.addEventListener("change", () => saveStored(STORAGE_KEYS.ollamaBaseUrl, refs.ollamaBaseUrl.value.trim()));
+    refs.ollamaModelName.addEventListener("input", () => saveStored(STORAGE_KEYS.ollamaModelName, refs.ollamaModelName.value.trim()));
     refs.ollamaModelName.addEventListener("change", () => saveStored(STORAGE_KEYS.ollamaModelName, refs.ollamaModelName.value.trim()));
     refs.ollamaOverwriteMode.addEventListener("change", () => saveStored(STORAGE_KEYS.ollamaOverwriteMode, refs.ollamaOverwriteMode.value));
     refs.ollamaOverwriteMode.addEventListener("change", renderOverwriteModeHints);
     refs.ollamaCaptionMode.addEventListener("change", () => saveStored(STORAGE_KEYS.ollamaCaptionMode, refs.ollamaCaptionMode.value));
     refs.ollamaMaxTokens.addEventListener("change", () => saveStored(STORAGE_KEYS.ollamaMaxTokens, refs.ollamaMaxTokens.value));
     refs.ollamaPrompt.addEventListener("change", () => saveStored(STORAGE_KEYS.ollamaPrompt, refs.ollamaPrompt.value));
+  }
+
+  function readLastWorkspaceOpenPayload() {
+    const raw = readStored(STORAGE_KEYS.lastWorkspaceDirs, "");
+    if (!raw) return null;
+    try {
+      const payload = JSON.parse(raw);
+      if (!payload || typeof payload !== "object") return null;
+      const hasDirectory = ["control1_dir", "control2_dir", "control3_dir", "result_dir"].some((key) => `${payload[key] || ""}`.trim());
+      return hasDirectory ? payload : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function applyLastWorkspaceOpenPayload(payload) {
+    refs.control1Dir.value = `${payload.control1_dir || ""}`;
+    refs.control2Dir.value = `${payload.control2_dir || ""}`;
+    refs.control3Dir.value = `${payload.control3_dir || ""}`;
+    refs.resultDir.value = `${payload.result_dir || ""}`;
+    refs.controlCount.value = `${payload.control_count || refs.controlCount.value || "1"}`;
+    refs.ignoreTokensInput.value = `${payload.ignore_tokens || ""}`;
+    updateControlFieldVisibility();
+  }
+
+  async function openLastWorkspaceOnStartup() {
+    if (!refs.autoOpenLastWorkspace?.checked) return false;
+    const payload = readLastWorkspaceOpenPayload();
+    if (!payload) return false;
+    applyLastWorkspaceOpenPayload(payload);
+    await runWithStatus("正在打开上次加载的数据目录...", async () => {
+      await loadWorkspace();
+      setAiStatusLine("已打开上次加载的数据目录。");
+    });
+    return true;
   }
 
   function bindEvents() {
@@ -220,6 +266,28 @@ export function createBootstrapModule({
         closeApiModelMenu();
       }
     });
+    refs.ollamaModelMenuBtn?.addEventListener("click", (event) => {
+      event.preventDefault();
+      state.ollamaModelMenuOpen ? closeOllamaModelMenu() : openOllamaModelMenu();
+    });
+    refs.ollamaModelName?.addEventListener("focus", () => {
+      if (state.ollamaModels.length) openOllamaModelMenu({ focusSearch: false });
+    });
+    refs.ollamaModelSearch?.addEventListener("input", () => {
+      state.ollamaModelQuery = refs.ollamaModelSearch.value.trim();
+      renderOllamaSuggestions();
+    });
+    refs.ollamaModelSearch?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const firstOption = refs.ollamaModelList?.querySelector(".model-picker-option");
+        if (firstOption) firstOption.click();
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeOllamaModelMenu();
+      }
+    });
 
     refs.loadWorkspaceBtn.addEventListener("click", () => runWithStatus("正在加载工作区...", () => loadWorkspace()).catch(showError));
     refs.rescanWorkspaceBtn.addEventListener("click", () => runWithStatus("正在重扫工作区...", () => rescanWorkspace()).catch(showError));
@@ -269,9 +337,12 @@ export function createBootstrapModule({
     });
 
     document.addEventListener("click", (event) => {
-      if (!state.apiModelMenuOpen) return;
-      if (event.target.closest("#apiModelPicker")) return;
-      closeApiModelMenu();
+      if (state.apiModelMenuOpen && !event.target.closest("#apiModelPicker")) {
+        closeApiModelMenu();
+      }
+      if (state.ollamaModelMenuOpen && !event.target.closest("#ollamaModelPicker")) {
+        closeOllamaModelMenu();
+      }
     });
 
     refs.addTagBtn.addEventListener("click", () => {
@@ -392,6 +463,15 @@ export function createBootstrapModule({
       }
     } catch (error) {
       console.warn(error);
+    }
+
+    if (!state.workspace?.counts?.all) {
+      try {
+        await openLastWorkspaceOnStartup();
+      } catch (error) {
+        console.warn(error);
+        setAiStatusLine(`打开上次加载的数据目录失败：${error.message || error}`);
+      }
     }
 
     await pollAiStatus();

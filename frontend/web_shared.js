@@ -5,6 +5,8 @@ export const STORAGE_KEYS = {
   viewMode: "lora-ui.view-mode",
   controlCount: "lora-ui.control-count",
   ignoreTokens: "lora-ui.ignore-tokens",
+  autoOpenLastWorkspace: "lora-ui.auto-open-last-workspace",
+  lastWorkspaceDirs: "lora-ui.last-workspace-dirs",
   workspaceBrowserRoot: "lora-ui.workspace-browser-root",
   workspaceBrowserTarget: "lora-ui.workspace-browser-target",
   exportTargetPixels: "lora-ui.export-target-pixels",
@@ -71,7 +73,7 @@ export const UTILITY_PANEL_LABELS = {
   projects: "项目管理",
   workspace: "工作区设置",
   automation: "标注配置",
-  batch: "批量与日志",
+  batch: "批量与状态",
   process: "图像预处理",
   export: "数据集导出",
 };

@@ -518,6 +518,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 result = _caption_with_backend(
                     backend=backend,
                     image_paths=image_paths,
+                    image_name=name,
                     model=model,
                     mode=body.get("mode", "natural"),
                     prompt=request["prompt"],

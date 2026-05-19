@@ -78,6 +78,7 @@ def caption_with_backend(
     *,
     backend: str,
     image_paths: list[str],
+    image_name: str = "",
     model,
     mode: str,
     prompt: str,
@@ -90,10 +91,13 @@ def caption_with_backend(
     api_client: APICaptionClient,
     ollama_client: OllamaCaptionClient,
 ) -> str:
+    image_file_names = [Path(path).name for path in image_paths if path]
     if backend == "api":
         return api_client.caption(
             image_path=image_paths[-1],
             image_paths=image_paths,
+            image_name=image_name,
+            image_file_names=image_file_names,
             api_base_url=api_base_url,
             api_key=api_key,
             model=str(model),
@@ -105,6 +109,8 @@ def caption_with_backend(
         return ollama_client.caption(
             image_path=image_paths[-1],
             image_paths=image_paths,
+            image_name=image_name,
+            image_file_names=image_file_names,
             base_url=ollama_base_url,
             model=str(model),
             mode=mode,
@@ -115,6 +121,8 @@ def caption_with_backend(
     return local_client.caption(
         image_path=image_paths[-1],
         image_paths=image_paths,
+        image_name=image_name,
+        image_file_names=image_file_names,
         model=model,
         mode=mode,
         prompt=prompt,
@@ -180,14 +188,16 @@ class BatchCaptionManager:
         self.logs: list[dict] = []
 
     def _log(self, message: str, level: str = "info"):
+        ts = time.strftime("%H:%M:%S")
         self.logs.append(
             {
-                "ts": time.strftime("%H:%M:%S"),
+                "ts": ts,
                 "level": level,
                 "message": message,
             }
         )
         self.logs = self.logs[-400:]
+        print(f"[{ts}] [batch] [{level}] {message}", flush=True)
 
     def snapshot(self) -> dict:
         with self._lock:
@@ -279,6 +289,7 @@ class BatchCaptionManager:
                     result = caption_with_backend(
                         backend=backend,
                         image_paths=image_paths,
+                        image_name=name,
                         model=model,
                         mode=mode,
                         prompt=request["prompt"],
