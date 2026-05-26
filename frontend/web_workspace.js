@@ -26,12 +26,17 @@ export function createWorkspaceBrowserModule({
     refs.workspaceBrowserTargetGroup.querySelectorAll("button[data-browser-target]").forEach((button) => {
       const target = button.dataset.browserTarget;
       const shouldHide =
+        (target === "control1" && count < 1) ||
         (target === "control2" && count < 2) ||
         (target === "control3" && count < 3);
       button.style.display = shouldHide ? "none" : "";
     });
-    if ((state.browserTarget === "control2" && count < 2) || (state.browserTarget === "control3" && count < 3)) {
-      state.browserTarget = "control1";
+    if (
+      (state.browserTarget === "control1" && count < 1) ||
+      (state.browserTarget === "control2" && count < 2) ||
+      (state.browserTarget === "control3" && count < 3)
+    ) {
+      state.browserTarget = "result";
       saveStored(STORAGE_KEYS.workspaceBrowserTarget, state.browserTarget);
     }
   }

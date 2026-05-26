@@ -10,14 +10,16 @@ export function createShellModule({
   getOllamaCaptionPayload,
 }) {
   function utilityPanelExists(panel) {
-    return document.querySelector(`.utility-panel[data-panel="${panel}"]`);
+    return refs.utilityPageShell?.querySelector(`.utility-panel[data-panel="${panel}"]`);
   }
 
   function renderUtilityPanelState() {
     const panel = utilityPanelExists(state.utilityPanel) ? state.utilityPanel : "workspace";
     state.utilityPanel = panel;
     refs.utilityPageShell?.setAttribute("aria-hidden", state.utilityOpen ? "false" : "true");
-    refs.workbenchShell?.classList.toggle("page-open", state.utilityOpen);
+    refs.workbenchShell?.classList.toggle("utility-open", state.utilityOpen);
+    refs.captionSettingsShell?.setAttribute("aria-hidden", state.captionSettingsOpen ? "false" : "true");
+    refs.workbenchShell?.classList.toggle("caption-settings-open", state.captionSettingsOpen);
     if (refs.utilityPageTitle) {
       refs.utilityPageTitle.textContent = UTILITY_PANEL_LABELS[panel] || "配置";
     }
@@ -26,8 +28,11 @@ export function createShellModule({
       button.classList.toggle("active", state.utilityOpen && isCurrent);
       button.setAttribute("aria-expanded", String(state.utilityOpen && isCurrent));
     });
-    document.querySelectorAll(".utility-panel").forEach((node) => {
+    refs.utilityPageShell?.querySelectorAll(".utility-panel").forEach((node) => {
       node.classList.toggle("active", node.dataset.panel === panel);
+    });
+    refs.captionSettingsShell?.querySelectorAll(".utility-panel").forEach((node) => {
+      node.classList.toggle("active", state.captionSettingsOpen);
     });
   }
 
@@ -46,8 +51,16 @@ export function createShellModule({
     renderUtilityPanelState();
   }
 
+  function toggleCaptionSettingsPanel(forceOpen = null) {
+    state.captionSettingsOpen = forceOpen === null ? !state.captionSettingsOpen : Boolean(forceOpen);
+    renderUtilityPanelState();
+  }
+
   function setAiStatusLine(message) {
-    refs.aiStatusLine.textContent = message || "待命";
+    if (refs.aiStatusLine) refs.aiStatusLine.textContent = message || "待命";
+    if (refs.topAiProgressText) {
+      refs.topAiProgressText.textContent = message || "待命";
+    }
   }
 
   async function runWithStatus(message, task) {
@@ -78,6 +91,7 @@ export function createShellModule({
     renderUtilityPanelState,
     setUtilityPanel,
     closeUtilityPanel,
+    toggleCaptionSettingsPanel,
     setAiStatusLine,
     runWithStatus,
     activeCaptionBackend,

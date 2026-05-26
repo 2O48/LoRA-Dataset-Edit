@@ -33,6 +33,13 @@ export function createEditorModule({
     return state.promptTemplates.find((item) => item.id === id) || null;
   }
 
+  function selectedTemplateNameFor(targetId) {
+    const row = document.querySelector(`.template-row[data-template-target="${targetId}"]`);
+    const select = row?.querySelector(".promptTemplateSelect");
+    const template = templateById(select?.value);
+    return template?.name || "中文·极简变化";
+  }
+
   function writeSegmentsToText(segments) {
     state.currentText = segments.join(", ");
     if (refs.captionEditor) refs.captionEditor.value = state.currentText;
@@ -310,7 +317,7 @@ export function createEditorModule({
   async function savePromptTemplateFor(targetId) {
     const textarea = document.querySelector(`#${targetId}`);
     if (!textarea) return;
-    const name = window.prompt("模板名称", "中文·极简变化");
+    const name = window.prompt("模板名称", selectedTemplateNameFor(targetId));
     if (!name) return;
     const data = await apiPost("/api/prompt-templates/save", {
       name,

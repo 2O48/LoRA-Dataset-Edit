@@ -305,7 +305,29 @@ class AppHandler(BaseHTTPRequestHandler):
                     name=str(body.get("name", "") or ""),
                     workspace=WORKSPACE,
                     overwrite_id=str(body.get("overwrite_id", "") or ""),
+                    control_count=body.get("control_count"),
+                    ui_state=body.get("ui_state", {}),
                 )
+                workspace = result.get("workspace", {}) if isinstance(result.get("workspace"), dict) else {}
+                dirs = workspace.get("dirs", {}) if isinstance(workspace.get("dirs"), dict) else {}
+                settings = workspace.get("settings", {}) if isinstance(workspace.get("settings"), dict) else {}
+                summary = WORKSPACE.open_dirs(
+                    control1_dir=dirs.get("control1") or "",
+                    control2_dir=dirs.get("control2") or "",
+                    control3_dir=dirs.get("control3") or "",
+                    result_dir=dirs.get("result") or "",
+                    control_count=settings.get("control_count", result.get("project", {}).get("control_count", 1)),
+                    ignore_tokens=settings.get("ignore_tokens", []),
+                )
+                items = workspace.get("items", []) if isinstance(workspace.get("items"), list) else []
+                aliases = {
+                    str(item.get("name", "") or ""): str(item.get("source_name", "") or "")
+                    for item in items
+                    if isinstance(item, dict) and item.get("name") and item.get("source_name")
+                }
+                if aliases:
+                    summary = WORKSPACE.apply_name_aliases(aliases)
+                result["workspace"] = summary
                 return self._send_json({"ok": True, **result})
 
             if path == "/api/projects/open":
@@ -322,12 +344,39 @@ class AppHandler(BaseHTTPRequestHandler):
                     control_count=settings.get("control_count", detail.get("project", {}).get("control_count", 1)),
                     ignore_tokens=settings.get("ignore_tokens", []),
                 )
+                items = workspace.get("items", []) if isinstance(workspace.get("items"), list) else []
+                aliases = {
+                    str(item.get("name", "") or ""): str(item.get("source_name", "") or "")
+                    for item in items
+                    if isinstance(item, dict) and item.get("name") and item.get("source_name")
+                }
+                if aliases:
+                    summary = WORKSPACE.apply_name_aliases(aliases)
                 IMAGE_PROCESS_MANAGER.reset_if_idle()
-                return self._send_json({"ok": True, "workspace": summary, "project": detail.get("project", {})})
+                return self._send_json({
+                    "ok": True,
+                    "workspace": summary,
+                    "project": detail.get("project", {}),
+                    "ui_state": workspace.get("ui_state", {}) if isinstance(workspace.get("ui_state"), dict) else {},
+                })
 
             if path == "/api/projects/rename":
                 project = PROJECT_STORE.rename_project(str(body.get("id", "") or ""), str(body.get("name", "") or ""))
                 return self._send_json({"ok": True, "project": project})
+
+            if path == "/api/projects/clone":
+                result = PROJECT_STORE.clone_project(
+                    str(body.get("id", "") or ""),
+                    str(body.get("name", "") or ""),
+                )
+                return self._send_json({"ok": True, **result})
+
+            if path == "/api/projects/ui-state":
+                result = PROJECT_STORE.update_ui_state(
+                    str(body.get("id", "") or ""),
+                    body.get("ui_state", {}),
+                )
+                return self._send_json({"ok": True, **result})
 
             if path == "/api/projects/delete":
                 result = PROJECT_STORE.delete_project(str(body.get("id", "") or ""))
@@ -623,7 +672,13 @@ class AppHandler(BaseHTTPRequestHandler):
 
             if path == "/api/ai/batch/stop":
                 BATCH_MANAGER.stop()
-                return self._send_json({"ok": True, "batch": BATCH_MANAGER.snapshot()})
+                load_cancelled = CAPTION_CLIENT.cancel_load()
+                return self._send_json({
+                    "ok": True,
+                    "batch": BATCH_MANAGER.snapshot(),
+                    "service": CAPTION_CLIENT.snapshot(),
+                    "load_cancelled": load_cancelled,
+                })
 
             return self._error(f"Unknown route: {path}", status=404)
         except KeyError as exc:

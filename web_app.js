@@ -36,6 +36,7 @@ const state = {
   segmentQuery: "",
   utilityPanel: window.localStorage.getItem(STORAGE_KEYS.utilityPanel) || "workspace",
   utilityOpen: false,
+  captionSettingsOpen: false,
   browserPath: "",
   browserParent: "",
   browserTarget: window.localStorage.getItem(STORAGE_KEYS.workspaceBrowserTarget) || "control1",
@@ -70,6 +71,8 @@ const state = {
   aiPollTimer: null,
   aiPollInFlight: false,
   projects: [],
+  currentProjectId: "",
+  currentProjectName: "",
   projectQuery: "",
   projectSortMode: window.localStorage.getItem(STORAGE_KEYS.projectSortMode) || "updated",
 };
@@ -82,8 +85,12 @@ const refs = {
   workbenchLayout: document.querySelector("#workbenchLayout"),
   utilityActions: document.querySelector("#utilityActions"),
   utilityPageShell: document.querySelector("#utilityPageShell"),
+  leftPanelResizer: document.querySelector("#leftPanelResizer"),
   utilityPageTitle: document.querySelector("#utilityPageTitle"),
   closeUtilityBtn: document.querySelector("#closeUtilityBtn"),
+  captionSettingsShell: document.querySelector("#captionSettingsShell"),
+  rightPanelResizer: document.querySelector("#rightPanelResizer"),
+  closeCaptionSettingsBtn: document.querySelector("#closeCaptionSettingsBtn"),
   control1Dir: document.querySelector("#control1Dir"),
   control2Dir: document.querySelector("#control2Dir"),
   control3Dir: document.querySelector("#control3Dir"),
@@ -107,6 +114,7 @@ const refs = {
   loadWorkspaceBtn: document.querySelector("#loadWorkspaceBtn"),
   rescanWorkspaceBtn: document.querySelector("#rescanWorkspaceBtn"),
   saveProjectBtn: document.querySelector("#saveProjectBtn"),
+  saveProjectAsBtn: document.querySelector("#saveProjectAsBtn"),
   refreshProjectsBtn: document.querySelector("#refreshProjectsBtn"),
   cleanupTmpBtn: document.querySelector("#cleanupTmpBtn"),
   projectNameInput: document.querySelector("#projectNameInput"),
@@ -118,10 +126,13 @@ const refs = {
   aiStat: document.querySelector("#aiStat"),
   focusStat: document.querySelector("#focusStat"),
   captionBackend: document.querySelector("#captionBackend"),
+  captionBackendTabs: document.querySelector("#captionBackendTabs"),
   openCaptionSettingsBtn: document.querySelector("#openCaptionSettingsBtn"),
   overviewCurrentName: document.querySelector("#overviewCurrentName"),
   overviewCurrentMeta: document.querySelector("#overviewCurrentMeta"),
   metricAll: document.querySelector("#metricAll"),
+  metricControlImages: document.querySelector("#metricControlImages"),
+  metricResultImages: document.querySelector("#metricResultImages"),
   metricTxt: document.querySelector("#metricTxt"),
   metricIssues: document.querySelector("#metricIssues"),
   metricFiltered: document.querySelector("#metricFiltered"),
@@ -228,6 +239,8 @@ const refs = {
   ollamaPromptModeHint: document.querySelector("#ollamaPromptModeHint"),
   loadOllamaModelsBtn: document.querySelector("#loadOllamaModelsBtn"),
   validateOllamaBtn: document.querySelector("#validateOllamaBtn"),
+  topAiProgressBar: document.querySelector("#topAiProgressBar"),
+  topAiProgressText: document.querySelector("#topAiProgressText"),
   aiProgressBar: document.querySelector("#aiProgressBar"),
   aiStatusLine: document.querySelector("#aiStatusLine"),
 };
@@ -274,14 +287,34 @@ function visibleNames() {
   return state.items.map((item) => item.name);
 }
 
+function syncBottomStatusTooltips() {
+  document.querySelectorAll(".bottom-status-item").forEach((item) => {
+    const baseTip = item.dataset.tooltip || item.getAttribute("title") || "";
+    const label = item.querySelector("span")?.textContent.trim() || "";
+    const value = item.querySelector("strong")?.textContent.trim() || "";
+    const currentText = label && value ? `${label}：${value}` : label || value;
+    const title = [currentText, baseTip].filter(Boolean).join("\n");
+    item.dataset.tooltip = baseTip;
+    item.setAttribute("title", title);
+    item.setAttribute("aria-label", title.replace(/\n/g, "，"));
+  });
+}
+
+const bottomStatusTooltipObserver = new MutationObserver(syncBottomStatusTooltips);
+document.querySelectorAll(".bottom-status-item").forEach((item) => {
+  bottomStatusTooltipObserver.observe(item, { childList: true, subtree: true, characterData: true });
+});
+syncBottomStatusTooltips();
+
 function showError(error) {
   console.error(error);
   window.alert(error.message || String(error));
 }
 
 function activeControlCount() {
-  const count = Number(refs.controlCount?.value || state.workspace?.settings?.control_count || 1);
-  return Math.max(1, Math.min(3, count));
+  const rawCount = refs.controlCount?.value ?? state.workspace?.settings?.control_count ?? 1;
+  const count = Number(rawCount);
+  return Math.max(0, Math.min(3, Number.isFinite(count) ? count : 1));
 }
 
 const shellModule = createShellModule({
@@ -299,6 +332,7 @@ const {
   renderUtilityPanelState,
   setUtilityPanel,
   closeUtilityPanel,
+  toggleCaptionSettingsPanel,
   setAiStatusLine,
   runWithStatus,
   activeCaptionBackend,
@@ -364,6 +398,7 @@ const {
   renderProjects,
   refreshProjects,
   saveCurrentProject,
+  saveProjectAsNew,
   cleanupTmpNow,
 } = createProjectsModule({
   state,
@@ -374,7 +409,14 @@ const {
   showError,
   applyWorkspaceSummary,
   refreshItems,
+  renderWorkspaceSummary,
   closeUtilityPanel,
+  saveStored,
+  STORAGE_KEYS,
+  renderQuickTags: (...args) => renderQuickTags(...args),
+  renderOverwriteModeHints: (...args) => renderOverwriteModeHints(...args),
+  selectItem,
+  saveCurrentCaption: (...args) => saveCurrentCaption(...args),
 });
 
 const editorModule = createEditorModule({
@@ -501,6 +543,7 @@ const { restorePersistedSettings, bindSettingsPersistence, bindEvents, bootstrap
   runWithStatus,
   showError,
   setUtilityPanel,
+  toggleCaptionSettingsPanel,
   setAiStatusLine,
   activeCaptionBackendLabel,
   activeCaptionPayload,
@@ -518,6 +561,7 @@ const { restorePersistedSettings, bindSettingsPersistence, bindEvents, bootstrap
   renderGlobalTags,
   renderFilters,
   renderWorkspaceSummary,
+  applyWorkspaceSummary,
   renderAiStatus,
   renderOverwriteModeHints,
   renderWorkspaceBrowser,
@@ -531,6 +575,7 @@ const { restorePersistedSettings, bindSettingsPersistence, bindEvents, bootstrap
   loadWorkspace,
   rescanWorkspace,
   saveCurrentProject,
+  saveProjectAsNew,
   refreshProjects,
   cleanupTmpNow,
   saveCurrentCaption,

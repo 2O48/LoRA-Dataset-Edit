@@ -18,22 +18,33 @@ export function createBrowserModule({
   setAiStatusLine,
 }) {
   function currentIssueCount() {
-    const stats = state.itemStats;
-    if (!stats) return 0;
-    return (
-      Number(stats.no_control1 || 0) +
-      Number(stats.no_control2 || 0) +
-      Number(stats.no_control3 || 0) +
-      Number(stats.no_result || 0) +
-      Number(stats.no_txt || 0) +
-      Number(stats.resolution_mismatch || 0)
-    );
+    return state.items.reduce((total, item) => {
+      const hasMissingControl = activeControlRoles().some((role) => !item.exists?.[role]);
+      const hasIssue = hasMissingControl || !item.exists?.result || !item.exists?.txt || Boolean(item.flags?.resolution_mismatch);
+      return total + (hasIssue ? 1 : 0);
+    }, 0);
+  }
+
+  function roleImageCount(role) {
+    return state.items.reduce((total, item) => total + (item.exists?.[role] ? 1 : 0), 0);
+  }
+
+  function controlImageCount() {
+    return activeControlRoles().reduce((total, role) => total + roleImageCount(role), 0);
+  }
+
+  function currentProjectLabel() {
+    if (state.currentProjectName) return state.currentProjectName;
+    if (state.workspace?.project_name) return state.workspace.project_name;
+    return "未加载项目";
   }
 
   function imageUrl(role, name, thumb = false, width = 320, height = 220) {
     const url = new URL("/api/image", window.location.origin);
     url.searchParams.set("role", role);
     url.searchParams.set("name", name);
+    url.searchParams.set("workspace", state.workspace?.workspace_key || String(state.workspaceImageVersion || 0));
+    url.searchParams.set("refresh", String(state.imageRefreshToken || 0));
     if (thumb) {
       url.searchParams.set("thumb", "1");
       url.searchParams.set("width", String(width));
@@ -43,8 +54,9 @@ export function createBrowserModule({
   }
 
   function activeControlCount() {
-    const count = Number(refs.controlCount?.value || state.workspace?.settings?.control_count || 1);
-    return Math.max(1, Math.min(3, count));
+    const rawCount = refs.controlCount?.value ?? state.workspace?.settings?.control_count ?? 1;
+    const count = Number(rawCount);
+    return Math.max(0, Math.min(3, Number.isFinite(count) ? count : 1));
   }
 
   function activeControlRoles() {
@@ -54,20 +66,22 @@ export function createBrowserModule({
   function renderWorkspaceSummary() {
     const counts = state.workspace?.counts;
     if (!counts) {
-      refs.workspaceStat.textContent = "未加载工作区";
-      refs.metricAll.textContent = "0";
+      refs.workspaceStat.textContent = "未加载项目";
+      if (refs.metricAll) refs.metricAll.textContent = "0";
+      if (refs.metricControlImages) refs.metricControlImages.textContent = "0";
+      if (refs.metricResultImages) refs.metricResultImages.textContent = "0";
       refs.metricTxt.textContent = "0";
-      refs.metricIssues.textContent = "0";
+      if (refs.metricIssues) refs.metricIssues.textContent = "0";
       refs.metricFiltered.textContent = "0";
       return;
     }
 
-    const editedText = counts.edited ? ` · 工作副本 ${counts.edited}` : "";
-    const excludedText = counts.excluded ? ` · 已排除 ${counts.excluded}` : "";
-    refs.workspaceStat.textContent = `共 ${counts.all} 项 · TXT ${counts.txt} · 分辨率异 ${counts.resolution_mismatch}${editedText}${excludedText}`;
-    refs.metricAll.textContent = `${counts.all || 0}`;
+    refs.workspaceStat.textContent = currentProjectLabel();
+    if (refs.metricAll) refs.metricAll.textContent = `${counts.all || 0}`;
+    if (refs.metricControlImages) refs.metricControlImages.textContent = `${controlImageCount()}`;
+    if (refs.metricResultImages) refs.metricResultImages.textContent = `${roleImageCount("result")}`;
     refs.metricTxt.textContent = `${counts.txt || 0}`;
-    refs.metricIssues.textContent = `${currentIssueCount()}`;
+    if (refs.metricIssues) refs.metricIssues.textContent = `${currentIssueCount()}`;
     refs.metricFiltered.textContent = `${state.items.length || 0}`;
   }
 
@@ -94,6 +108,10 @@ export function createBrowserModule({
     if (item.flags.resolution_mismatch) flags.push(["分辨率异", "warn"]);
     if (!flags.length) flags.push(["正常", "ok"]);
     return flags;
+  }
+
+  function displayItemName(name) {
+    return `${name || ""}`.replace(/\\/g, "/");
   }
 
   function scrollSelectedItemIntoView(block = "center") {
@@ -168,9 +186,10 @@ export function createBrowserModule({
       }
 
       const right = document.createElement("div");
+      right.className = "item-card-main";
       const title = document.createElement("div");
       title.className = "item-title";
-      title.textContent = item.name;
+      title.textContent = displayItemName(item.name);
       right.appendChild(title);
 
       const flags = document.createElement("div");
@@ -192,13 +211,16 @@ export function createBrowserModule({
 
   function renderSelectionSummary() {
     const item = state.currentItem;
-    refs.focusStat.textContent = item ? `当前: ${item.name}` : "未选择条目";
+    const selectedIndex = item ? state.items.findIndex((candidate) => candidate.name === item.name) + 1 : 0;
+    refs.focusStat.textContent = selectedIndex > 0 ? `${selectedIndex}/${state.items.length || 0}` : `0/${state.items.length || 0}`;
     if (refs.overviewCurrentName) refs.overviewCurrentName.textContent = item ? item.name : "未选择图片";
     if (refs.overviewCurrentMeta) {
       refs.overviewCurrentMeta.textContent = item
-        ? `TXT ${item.exists.txt ? "已存在" : "未创建"} · ${activeControlRoles()
-            .map((role) => `${ROLE_LABELS[role]} ${item.exists[role] ? "有" : "无"}`)
-            .join(" · ")} · 结果图 ${item.exists.result ? "有" : "无"}`
+        ? [
+            `TXT ${item.exists.txt ? "已存在" : "未创建"}`,
+            ...activeControlRoles().map((role) => `${ROLE_LABELS[role]} ${item.exists[role] ? "有" : "无"}`),
+            `结果图 ${item.exists.result ? "有" : "无"}`,
+          ].join(" · ")
         : "加载工作区后，在浏览区选择条目开始编辑。";
     }
   }
@@ -210,23 +232,28 @@ export function createBrowserModule({
     refs.viewerGrid.dataset.imageMode = state.viewerImageMode || "fit";
     refs.currentName.textContent = item ? item.name : "未选择图片";
     refs.currentMeta.textContent = item
-      ? `TXT: ${item.exists.txt ? "已存在" : "未创建"} · ${activeControlRoles()
-          .map((role) => `${ROLE_LABELS[role]}: ${item.exists[role] ? "有" : "无"}`)
-          .join(" · ")} · 结果图: ${item.exists.result ? "有" : "无"}`
+      ? [
+          `TXT: ${item.exists.txt ? "已存在" : "未创建"}`,
+          ...activeControlRoles().map((role) => `${ROLE_LABELS[role]}: ${item.exists[role] ? "有" : "无"}`),
+          `结果图: ${item.exists.result ? "有" : "无"}`,
+        ].join(" · ")
       : "选择左侧条目开始浏览。";
 
+    const controlCount = activeControlCount();
     refs.viewModeGroup.querySelectorAll("button").forEach((button) => {
-      button.classList.toggle("active", button.dataset.mode === state.viewMode);
+      button.classList.toggle("active", controlCount > 0 && button.dataset.mode === state.viewMode);
     });
 
     const visibleRoles =
-      state.viewMode === "one"
+      controlCount === 0
         ? ["result"]
-        : state.viewMode === "two"
-          ? ["control1", "result"]
-          : state.viewMode === "three"
-            ? ["control1", "control2", "result"]
-            : ["control1", "control2", "control3", "result"];
+        : state.viewMode === "one"
+          ? ["result"]
+          : state.viewMode === "two"
+            ? ["control1", "result"]
+            : state.viewMode === "three"
+              ? ["control1", "control2", "result"]
+              : ["control1", "control2", "control3", "result"];
 
     refs.viewerGrid.querySelectorAll(".image-card").forEach((card) => {
       const role = card.dataset.role;
@@ -357,10 +384,17 @@ export function createBrowserModule({
   }
 
   function applyWorkspaceSummary(workspace) {
+    const previousKey = state.workspace?.workspace_key || "";
     state.workspace = workspace;
+    const nextKey = state.workspace?.workspace_key || "";
+    state.workspaceImageVersion = (state.workspaceImageVersion || 0) + 1;
+    state.imageRefreshToken = `${Date.now()}-${state.workspaceImageVersion}-${nextKey || previousKey}`;
     const dirs = state.workspace?.dirs || {};
     const settings = state.workspace?.settings || {};
-    refs.controlCount.value = String(settings.control_count || refs.controlCount.value || "1");
+    const hasLoadedWorkspace = Object.values(dirs).some(Boolean);
+    if (hasLoadedWorkspace) {
+      refs.controlCount.value = String(settings.control_count ?? refs.controlCount.value ?? "1");
+    }
     refs.ignoreTokensInput.value = Array.isArray(settings.ignore_tokens)
       ? settings.ignore_tokens.join(", ")
       : refs.ignoreTokensInput.value;
@@ -380,7 +414,7 @@ export function createBrowserModule({
       control2_dir: refs.control2Dir.value.trim(),
       control3_dir: refs.control3Dir.value.trim(),
       result_dir: refs.resultDir.value.trim(),
-      control_count: Number(refs.controlCount.value || 1),
+      control_count: Number(refs.controlCount.value ?? 1),
       ignore_tokens: refs.ignoreTokensInput.value.trim(),
     };
   }
@@ -413,7 +447,7 @@ export function createBrowserModule({
       control2_dir: refs.mergeControl2Dir.value.trim(),
       control3_dir: refs.mergeControl3Dir.value.trim(),
       result_dir: refs.mergeResultDir.value.trim(),
-      control_count: Number(refs.controlCount.value || 1),
+      control_count: Number(refs.controlCount.value ?? 1),
     });
     applyWorkspaceSummary(data.workspace);
     await refreshItems({ skipDirtyCheck: true });
@@ -423,7 +457,7 @@ export function createBrowserModule({
 
   function updateControlFieldVisibility() {
     const count = activeControlCount();
-    const previousCount = Number(state.workspace?.settings?.control_count || refs.controlCount.dataset.previousCount || 1);
+    const previousCount = Number(state.workspace?.settings?.control_count ?? refs.controlCount.dataset.previousCount ?? 1);
     document.querySelectorAll("[data-control-field]").forEach((node) => {
       const roleIndex = Number(node.getAttribute("data-control-field"));
       node.style.display = roleIndex <= count ? "" : "none";
@@ -436,18 +470,24 @@ export function createBrowserModule({
     refs.filterGroup.querySelectorAll("button[data-filter]").forEach((button) => {
       const filter = button.dataset.filter;
       const shouldHide =
+        (filter === "no_control1" && count < 1) ||
         (filter === "no_control2" && count < 2) ||
         (filter === "no_control3" && count < 3);
       button.style.display = shouldHide ? "none" : "";
     });
-    if ((state.filter === "no_control2" && count < 2) || (state.filter === "no_control3" && count < 3)) {
+    if (
+      (state.filter === "no_control1" && count < 1) ||
+      (state.filter === "no_control2" && count < 2) ||
+      (state.filter === "no_control3" && count < 3)
+    ) {
       state.filter = "all";
     }
     syncWorkspaceBrowserTargetVisibility();
 
-    const allowedModes = count === 1 ? ["one", "two"] : count === 2 ? ["one", "two", "three"] : ["one", "two", "three", "four"];
+    const allowedModes = count === 0 ? ["one"] : count === 1 ? ["one", "two"] : count === 2 ? ["one", "two", "three"] : ["one", "two", "three", "four"];
+    refs.viewModeGroup.style.display = count > 0 ? "" : "none";
     refs.viewModeGroup.querySelectorAll("button[data-mode]").forEach((button) => {
-      button.style.display = allowedModes.includes(button.dataset.mode) ? "" : "none";
+      button.style.display = count > 0 && allowedModes.includes(button.dataset.mode) ? "" : "none";
     });
     if (count > previousCount) {
       state.viewMode = allowedModes.at(-1) || "two";
