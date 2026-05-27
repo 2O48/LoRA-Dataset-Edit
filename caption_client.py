@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import signal
 import subprocess
 import sys
 import threading
@@ -98,7 +99,9 @@ class CaptionServiceClient:
             if not self.service_path.exists():
                 raise FileNotFoundError(f"caption_service.py not found: {self.service_path}")
 
-            creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            creationflags = 0
+            if sys.platform == "win32":
+                creationflags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
             child_python = project_python() if project_python().exists() else Path(sys.executable)
             self.proc = subprocess.Popen(
                 [str(child_python), str(self.service_path)],
@@ -108,6 +111,7 @@ class CaptionServiceClient:
                 text=True,
                 bufsize=1,
                 creationflags=creationflags,
+                start_new_session=sys.platform != "win32",
             )
             self.ready = False
             self.status = "starting"
@@ -128,11 +132,49 @@ class CaptionServiceClient:
             except Exception:
                 pass
             try:
-                self.proc.terminate()
+                self._terminate_process_tree()
             except Exception:
                 pass
             self.ready = False
             self.status = "stopped"
+
+    def _terminate_process_tree(self):
+        if not self.proc or self.proc.poll() is not None:
+            return
+        if sys.platform == "win32":
+            subprocess.run(
+                ["taskkill", "/PID", str(self.proc.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                check=False,
+            )
+            return
+        try:
+            os.killpg(self.proc.pid, signal.SIGTERM)
+        except Exception:
+            self.proc.terminate()
+
+    def cancel_load(self) -> bool:
+        with self._lock:
+            if self._load_waiter is None:
+                return False
+            waiter = self._load_waiter
+            self._append_log("model loading cancelled", "warn")
+            try:
+                self._terminate_process_tree()
+            except Exception:
+                pass
+            self.ready = False
+            self.status = "stopped"
+            self.progress_pct = 0
+            self.progress_msg = "model loading cancelled"
+            self.loaded_models.clear()
+            try:
+                waiter.put_nowait({"type": "load_done", "model": "", "ok": False, "cancelled": True, "error": "model loading cancelled"})
+            except queue.Full:
+                pass
+            return True
 
     def ensure_started(self, timeout: float = 10.0):
         self.start()
@@ -232,6 +274,8 @@ class CaptionServiceClient:
         finally:
             with self._lock:
                 self._load_waiter = None
+        if result.get("cancelled"):
+            raise RuntimeError("model loading cancelled")
         if not result.get("ok"):
             raise RuntimeError(f"failed to load model: {model}")
         return result

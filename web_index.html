@@ -15,30 +15,12 @@
           <p class="eyebrow">LoRA Dataset Editorial Console</p>
           <h1>LoRA 数据集标注工作台</h1>
         </div>
-
-        <div class="command-overview">
-          <div class="mini-metrics" aria-label="数据概览">
-            <div class="mini-metric">
-              <span>总数</span>
-              <strong id="metricAll">0</strong>
+        <div class="command-progress" aria-label="打标进度">
+          <div class="top-caption-progress">
+            <div class="top-caption-progress-status" id="topAiProgressText">等待启动服务</div>
+            <div class="top-caption-progress-track">
+              <div class="top-caption-progress-bar" id="topAiProgressBar"></div>
             </div>
-            <div class="mini-metric">
-              <span>TXT</span>
-              <strong id="metricTxt">0</strong>
-            </div>
-            <div class="mini-metric">
-              <span>异常</span>
-              <strong id="metricIssues">0</strong>
-            </div>
-            <div class="mini-metric">
-              <span>筛选</span>
-              <strong id="metricFiltered">0</strong>
-            </div>
-          </div>
-          <div class="command-status">
-            <div class="status-chip" id="workspaceStat">未加载工作区</div>
-            <div class="status-chip" id="aiStat">AI 待命</div>
-            <div class="status-chip subtle" id="focusStat">未选择条目</div>
           </div>
         </div>
 
@@ -56,6 +38,19 @@
           <button class="button-ghost" id="openCaptionSettingsBtn" type="button">标注配置</button>
           <button class="button-ghost danger" id="stopBatchBtn" type="button">停止</button>
         </div>
+      </div>
+    </header>
+
+    <main class="workbench-shell" id="workbenchShell">
+      <section class="utility-page-shell" id="utilityPageShell" aria-hidden="true">
+        <div class="panel-resizer left-panel-resizer" id="leftPanelResizer" role="separator" aria-orientation="vertical" aria-label="调整左侧面板宽度"></div>
+        <div class="side-panel-head">
+          <div>
+            <p class="card-kicker">Options</p>
+            <h2 id="utilityPageTitle">工作区设置</h2>
+          </div>
+          <button class="icon-button" id="closeUtilityBtn" type="button" aria-label="隐藏左侧面板">×</button>
+        </div>
 
         <nav class="utility-actions" id="utilityActions" aria-label="配置面板">
           <button class="utility-tab" data-panel="projects" type="button">项目</button>
@@ -64,10 +59,276 @@
           <button class="utility-tab" data-panel="process" type="button">图像处理</button>
           <button class="utility-tab" data-panel="export" type="button">导出</button>
         </nav>
-      </div>
-    </header>
 
-    <main class="workbench-shell" id="workbenchShell">
+        <section class="utility-panel active" data-panel="workspace">
+          <article class="card directory-browser-card">
+            <div class="card-head">
+              <div>
+                <p class="card-kicker">Folder Picker</p>
+                <h2>目录浏览器</h2>
+              </div>
+              <p class="card-note">输入父目录后逐级选择子目录，再填入当前目标槽位。</p>
+            </div>
+
+            <div class="folder-browser">
+              <label class="stacked-label">
+                <span>浏览根目录</span>
+                <input id="workspaceBrowserRoot" placeholder="/mnt/d/dataset 或 D:\dataset">
+              </label>
+              <div class="folder-browser-actions">
+                <button class="button-primary" id="workspaceBrowseBtn" type="button">浏览子目录</button>
+                <button class="button-ghost" id="workspaceBrowseUpBtn" type="button">上级</button>
+                <button class="button-ghost" id="workspaceBrowseUseBtn" type="button">使用当前目录</button>
+              </div>
+              <div class="segmented browser-targets" id="workspaceBrowserTargetGroup">
+                <button class="active" data-browser-target="control1" type="button">控制图 1</button>
+                <button data-browser-target="control2" type="button">控制图 2</button>
+                <button data-browser-target="control3" type="button">控制图 3</button>
+                <button data-browser-target="result" type="button">结果图</button>
+              </div>
+              <div class="folder-browser-path" id="workspaceBrowserPath">未选择目录</div>
+              <div class="folder-browser-list" id="workspaceBrowserList"></div>
+            </div>
+          </article>
+
+          <article class="card workspace-card">
+            <div class="card-head">
+              <div>
+                <p class="card-kicker">Workspace</p>
+                <h2>载入数据目录</h2>
+              </div>
+              <p class="card-note">控制图、结果图与 TXT 会按文件名自动匹配。</p>
+            </div>
+            <div class="command-workspace">
+              <label class="toolbar-field compact-field">
+                <span>控制图数量</span>
+                <select id="controlCount">
+                  <option value="0">0 路</option>
+                  <option value="1">1 路</option>
+                  <option value="2">2 路</option>
+                  <option value="3">3 路</option>
+                </select>
+              </label>
+              <label class="toolbar-field wide-field">
+                <span>匹配忽略项</span>
+                <input id="ignoreTokensInput" placeholder="例如：_result, _output, -edited, 空格分隔也可">
+              </label>
+              <label class="checkbox-row wide-field">
+                <input id="autoOpenLastWorkspace" type="checkbox">
+                <span>启动时打开上次加载的数据目录</span>
+              </label>
+              <label class="toolbar-field" data-control-field="1">
+                <span>控制图 1</span>
+                <input id="control1Dir" placeholder="/mnt/c/.../control1 或 D:\dataset\control1">
+              </label>
+              <label class="toolbar-field" data-control-field="2">
+                <span>控制图 2</span>
+                <input id="control2Dir" placeholder="/mnt/c/.../control2 或 D:\dataset\control2">
+              </label>
+              <label class="toolbar-field" data-control-field="3">
+                <span>控制图 3</span>
+                <input id="control3Dir" placeholder="/mnt/c/.../control3 或 D:\dataset\control3">
+              </label>
+              <label class="toolbar-field">
+                <span>结果图</span>
+                <input id="resultDir" placeholder="/mnt/c/.../result 或 D:\dataset\result">
+              </label>
+              <button class="button-primary command-load" id="loadWorkspaceBtn" type="button">加载工作区</button>
+              <button class="button-ghost command-load" id="rescanWorkspaceBtn" type="button">重扫工作区</button>
+            </div>
+          </article>
+
+          <article class="card workspace-card">
+            <div class="card-head">
+              <div>
+                <p class="card-kicker">Merge Dataset</p>
+                <h2>追加图像对数据集</h2>
+              </div>
+              <p class="card-note">把额外 control/result 目录追加到当前工作区，不清空已载入内容。</p>
+            </div>
+            <div class="command-workspace">
+              <label class="toolbar-field" data-merge-control-field="1">
+                <span>追加控制图 1</span>
+                <input id="mergeControl1Dir" placeholder="/mnt/c/.../control1 或 D:\dataset\control1">
+              </label>
+              <label class="toolbar-field" data-merge-control-field="2">
+                <span>追加控制图 2</span>
+                <input id="mergeControl2Dir" placeholder="/mnt/c/.../control2 或 D:\dataset\control2">
+              </label>
+              <label class="toolbar-field" data-merge-control-field="3">
+                <span>追加控制图 3</span>
+                <input id="mergeControl3Dir" placeholder="/mnt/c/.../control3 或 D:\dataset\control3">
+              </label>
+              <label class="toolbar-field">
+                <span>追加结果图</span>
+                <input id="mergeResultDir" placeholder="/mnt/c/.../result 或 D:\dataset\result">
+              </label>
+              <button class="button-primary command-load" id="mergeWorkspaceBtn" type="button">追加到当前工作区</button>
+            </div>
+            <div class="export-status" id="mergeStatus">等待追加数据集</div>
+          </article>
+        </section>
+
+        <section class="utility-panel projects-panel single-page-panel" data-panel="projects">
+          <article class="card project-browser-card">
+            <div class="card-head">
+              <div>
+                <p class="card-kicker">Projects</p>
+                <h2>历史项目</h2>
+              </div>
+              <div class="card-actions">
+                <button class="button-primary" id="saveProjectBtn" type="button">保存当前项目</button>
+                <button class="button-ghost" id="saveProjectAsBtn" type="button">保存为新项目</button>
+                <button class="button-ghost" id="refreshProjectsBtn" type="button">刷新</button>
+                <button class="button-ghost" id="cleanupTmpBtn" type="button">清理 tmp</button>
+              </div>
+            </div>
+            <div class="project-toolbar">
+              <label class="stacked-label">
+                <span>项目名称</span>
+                <input id="projectNameInput" placeholder="例如：越野风格">
+              </label>
+              <label class="stacked-label">
+                <span>搜索</span>
+                <input id="projectSearchInput" placeholder="按项目名称过滤">
+              </label>
+              <label class="stacked-label compact-field">
+                <span>排序</span>
+                <select id="projectSortMode">
+                  <option value="updated">最近更新</option>
+                  <option value="created">创建时间</option>
+                  <option value="name">项目名称</option>
+                </select>
+              </label>
+            </div>
+            <div class="project-grid" id="projectGrid"></div>
+            <p class="card-note" id="projectStatus">项目保存后会出现在用户目录 .lora_dataset_edit/projects，可后续打开继续标注。</p>
+          </article>
+        </section>
+
+        <section class="utility-panel" data-panel="batch">
+          <article class="card batch-card">
+            <div class="card-head">
+              <div>
+                <p class="card-kicker">Batch Tools</p>
+                <h2>批量整理</h2>
+              </div>
+              <p class="card-note">作用于当前筛选结果。</p>
+            </div>
+            <div class="batch-grid">
+              <input id="batchAddInput" placeholder="添加短语，逗号分隔">
+              <button class="button-ghost" id="batchAddBtn" type="button">批量添加</button>
+              <input id="batchDeleteInput" placeholder="删除短语 / 片段，逗号分隔">
+              <button class="button-ghost danger" id="batchDeleteBtn" type="button">批量删除</button>
+              <input id="batchReplaceOld" placeholder="旧短语">
+              <input id="batchReplaceNew" placeholder="新短语（留空表示删除）">
+              <button class="button-ghost warn span-2" id="batchReplaceBtn" type="button">批量替换</button>
+              <button class="button-ghost danger span-2" id="deleteCurrentBtn" type="button">从导出集中排除当前条目</button>
+            </div>
+          </article>        </section>
+
+        <section class="utility-panel single-page-panel" data-panel="process">
+          <article class="card export-card">
+            <div class="card-head">
+              <div>
+                <p class="card-kicker">Image Process</p>
+                <h2>预处理标注图像</h2>
+              </div>
+              <p class="card-note">使用 Lanczos 生成缩放裁切后的工作集，可先加载再进行 AI 标注。</p>
+            </div>
+
+            <div class="form-grid two-col">
+              <label>
+                <span>工作集名称</span>
+                <input id="processProjectName" placeholder="例如：越野风格">
+              </label>
+              <label>
+                <span>目标像素</span>
+                <select id="exportTargetPixels">
+                  <option value="1">1 百万像素</option>
+                  <option value="2">2 百万像素</option>
+                  <option value="3">3 百万像素</option>
+                  <option value="4" selected>4 百万像素</option>
+                </select>
+              </label>
+              <label>
+                <span>尺寸倍数</span>
+                <select id="exportSizeMultiple">
+                  <option value="16" selected>16 的倍数</option>
+                  <option value="32">32 的倍数</option>
+                  <option value="64">64 的倍数</option>
+                </select>
+              </label>
+            </div>
+
+            <label class="toggle-row">
+              <input id="processIncludeControls" type="checkbox" checked>
+              <span>同时处理当前启用的控制图目录</span>
+            </label>
+            <label class="toggle-row">
+              <input id="processLoadWorkspace" type="checkbox" checked>
+              <span>处理完成后加载为当前工作区</span>
+            </label>
+            <label class="toggle-row">
+              <input id="processOnlyMismatched" type="checkbox" checked>
+              <span>批量匹配结果尺寸时只重采样尺寸不一致项，已匹配项直接复制</span>
+            </label>
+            <div class="action-row">
+              <button class="button-primary" id="processImagesBtn" type="button">处理图像工作集</button>
+              <button class="button-ghost" id="processMatchResultBtn" type="button">批量匹配结果尺寸</button>
+            </div>
+            <div class="progress-shell">
+              <div class="progress-bar" id="processProgressBar"></div>
+            </div>
+            <div class="export-status" id="processStatus">等待图像处理</div>
+          </article>
+        </section>
+
+        <section class="utility-panel single-page-panel" data-panel="export">
+          <article class="card export-card">
+            <div class="card-head">
+              <div>
+                <p class="card-kicker">Dataset Export</p>
+                <h2>导出完成数据集</h2>
+              </div>
+              <p class="card-note">建议先在图像处理面板生成工作集再标注；导出不会改动原始目录。</p>
+            </div>
+
+            <div class="form-grid two-col">
+              <label>
+                <span>项目名称</span>
+                <input id="exportProjectName" placeholder="例如：越野风格">
+              </label>
+              <label>
+                <span>导出格式</span>
+                <select id="exportFormat">
+                  <option value="zip">下载 ZIP</option>
+                  <option value="folder">导出为文件夹</option>
+                </select>
+              </label>
+              <label>
+                <span>文件夹导出父目录</span>
+                <input id="exportOutputDir" placeholder="留空则导出到项目 datasets/exports">
+              </label>
+            </div>
+
+            <label class="toggle-row">
+              <input id="exportProcessImages" type="checkbox" checked>
+              <span>导出时按图像处理参数再次缩放并中心裁切</span>
+            </label>
+            <label class="toggle-row">
+              <input id="exportIncludeControls" type="checkbox" checked>
+              <span>同时导出当前启用的控制图目录</span>
+            </label>
+
+            <div class="action-row">
+              <button class="button-primary" id="exportDatasetBtn" type="button">导出数据集</button>
+            </div>
+            <div class="export-status" id="exportStatus">等待导出</div>
+          </article>
+        </section>
+      </section>
+
       <div class="workbench-layout" id="workbenchLayout">
         <aside class="card list-card">
         <div class="card-head">
@@ -201,179 +462,27 @@
         </div>
       </div>
 
-      <section class="utility-page-shell" id="utilityPageShell" aria-hidden="true">
-        <div class="page-head">
+      <section class="caption-settings-shell" id="captionSettingsShell" aria-hidden="true">
+        <div class="panel-resizer right-panel-resizer" id="rightPanelResizer" role="separator" aria-orientation="vertical" aria-label="调整右侧面板宽度"></div>
+        <div class="side-panel-head">
           <div>
-            <p class="card-kicker">Options</p>
-            <h2 id="utilityPageTitle">工作区设置</h2>
+            <p class="card-kicker">Caption</p>
+            <h2>标注配置</h2>
           </div>
-          <button class="button-ghost" id="closeUtilityBtn" type="button">返回工作台</button>
+          <button class="icon-button" id="closeCaptionSettingsBtn" type="button" aria-label="隐藏标注配置">×</button>
         </div>
 
-        <section class="utility-panel active" data-panel="workspace">
-          <article class="card directory-browser-card">
-            <div class="card-head">
-              <div>
-                <p class="card-kicker">Folder Picker</p>
-                <h2>目录浏览器</h2>
-              </div>
-              <p class="card-note">输入父目录后逐级选择子目录，再填入当前目标槽位。</p>
-            </div>
-
-            <div class="folder-browser">
-              <label class="stacked-label">
-                <span>浏览根目录</span>
-                <input id="workspaceBrowserRoot" placeholder="/mnt/d/dataset 或 D:\dataset">
-              </label>
-              <div class="folder-browser-actions">
-                <button class="button-primary" id="workspaceBrowseBtn" type="button">浏览子目录</button>
-                <button class="button-ghost" id="workspaceBrowseUpBtn" type="button">上级</button>
-                <button class="button-ghost" id="workspaceBrowseUseBtn" type="button">使用当前目录</button>
-              </div>
-              <div class="segmented browser-targets" id="workspaceBrowserTargetGroup">
-                <button class="active" data-browser-target="control1" type="button">控制图 1</button>
-                <button data-browser-target="control2" type="button">控制图 2</button>
-                <button data-browser-target="control3" type="button">控制图 3</button>
-                <button data-browser-target="result" type="button">结果图</button>
-              </div>
-              <div class="folder-browser-path" id="workspaceBrowserPath">未选择目录</div>
-              <div class="folder-browser-list" id="workspaceBrowserList"></div>
-            </div>
-          </article>
-
-          <article class="card workspace-card">
-            <div class="card-head">
-              <div>
-                <p class="card-kicker">Workspace</p>
-                <h2>载入数据目录</h2>
-              </div>
-              <p class="card-note">控制图、结果图与 TXT 会按文件名自动匹配。</p>
-            </div>
-            <div class="command-workspace">
-              <label class="toolbar-field compact-field">
-                <span>控制图数量</span>
-                <select id="controlCount">
-                  <option value="1">1 路</option>
-                  <option value="2">2 路</option>
-                  <option value="3">3 路</option>
-                </select>
-              </label>
-              <label class="toolbar-field wide-field">
-                <span>匹配忽略项</span>
-                <input id="ignoreTokensInput" placeholder="例如：_result, _output, -edited, 空格分隔也可">
-              </label>
-              <label class="checkbox-row wide-field">
-                <input id="autoOpenLastWorkspace" type="checkbox">
-                <span>启动时打开上次加载的数据目录</span>
-              </label>
-              <label class="toolbar-field" data-control-field="1">
-                <span>控制图 1</span>
-                <input id="control1Dir" placeholder="/mnt/c/.../control1 或 D:\dataset\control1">
-              </label>
-              <label class="toolbar-field" data-control-field="2">
-                <span>控制图 2</span>
-                <input id="control2Dir" placeholder="/mnt/c/.../control2 或 D:\dataset\control2">
-              </label>
-              <label class="toolbar-field" data-control-field="3">
-                <span>控制图 3</span>
-                <input id="control3Dir" placeholder="/mnt/c/.../control3 或 D:\dataset\control3">
-              </label>
-              <label class="toolbar-field">
-                <span>结果图</span>
-                <input id="resultDir" placeholder="/mnt/c/.../result 或 D:\dataset\result">
-              </label>
-              <button class="button-primary command-load" id="loadWorkspaceBtn" type="button">加载工作区</button>
-              <button class="button-ghost command-load" id="rescanWorkspaceBtn" type="button">重扫工作区</button>
-            </div>
-          </article>
-
-          <article class="card workspace-card">
-            <div class="card-head">
-              <div>
-                <p class="card-kicker">Merge Dataset</p>
-                <h2>追加图像对数据集</h2>
-              </div>
-              <p class="card-note">把额外 control/result 目录追加到当前工作区，不清空已载入内容。</p>
-            </div>
-            <div class="command-workspace">
-              <label class="toolbar-field" data-merge-control-field="1">
-                <span>追加控制图 1</span>
-                <input id="mergeControl1Dir" placeholder="/mnt/c/.../control1 或 D:\dataset\control1">
-              </label>
-              <label class="toolbar-field" data-merge-control-field="2">
-                <span>追加控制图 2</span>
-                <input id="mergeControl2Dir" placeholder="/mnt/c/.../control2 或 D:\dataset\control2">
-              </label>
-              <label class="toolbar-field" data-merge-control-field="3">
-                <span>追加控制图 3</span>
-                <input id="mergeControl3Dir" placeholder="/mnt/c/.../control3 或 D:\dataset\control3">
-              </label>
-              <label class="toolbar-field">
-                <span>追加结果图</span>
-                <input id="mergeResultDir" placeholder="/mnt/c/.../result 或 D:\dataset\result">
-              </label>
-              <button class="button-primary command-load" id="mergeWorkspaceBtn" type="button">追加到当前工作区</button>
-            </div>
-            <div class="export-status" id="mergeStatus">等待追加数据集</div>
-          </article>
-        </section>
-
-        <section class="utility-panel projects-panel single-page-panel" data-panel="projects">
-          <article class="card project-browser-card">
-            <div class="card-head">
-              <div>
-                <p class="card-kicker">Projects</p>
-                <h2>历史项目</h2>
-              </div>
-              <div class="card-actions">
-                <button class="button-primary" id="saveProjectBtn" type="button">保存当前项目</button>
-                <button class="button-ghost" id="refreshProjectsBtn" type="button">刷新</button>
-                <button class="button-ghost" id="cleanupTmpBtn" type="button">清理 tmp</button>
-              </div>
-            </div>
-            <div class="project-toolbar">
-              <label class="stacked-label">
-                <span>项目名称</span>
-                <input id="projectNameInput" placeholder="例如：越野风格">
-              </label>
-              <label class="stacked-label">
-                <span>搜索</span>
-                <input id="projectSearchInput" placeholder="按项目名称过滤">
-              </label>
-              <label class="stacked-label compact-field">
-                <span>排序</span>
-                <select id="projectSortMode">
-                  <option value="updated">最近更新</option>
-                  <option value="created">创建时间</option>
-                  <option value="name">项目名称</option>
-                </select>
-              </label>
-            </div>
-            <div class="project-grid" id="projectGrid"></div>
-            <p class="card-note" id="projectStatus">项目保存后会出现在 datasets/projects，可后续打开继续标注。</p>
-          </article>
-        </section>
-
         <section class="utility-panel" data-panel="automation">
-          <article class="card ai-card">
+          <article class="card ai-card caption-common-card">
             <div class="card-head">
               <div>
-                <p class="card-kicker">Local Qwen</p>
-                <h2>本地 Qwen3.5 标注</h2>
+                <p class="card-kicker">Shared Caption</p>
+                <h2>通用标注设置</h2>
               </div>
-              <div class="card-actions">
-                <button class="button-ghost" id="installDepsBtn" type="button">安装 Qwen 依赖到 .venv</button>
-                <button class="button-ghost" id="loadModelBtn" type="button">加载模型</button>
-                <button class="button-ghost" id="validateLocalBtn" type="button">验证模型</button>
-              </div>
+              <p class="card-note">本地、API、Ollama 标注共用这些生成参数。</p>
             </div>
-            <p class="card-note">仅保留 Qwen3.5，模型默认落在项目内 `models/Qwen3.5-*`；悬停下方说明可看兼容来源与路径。</p>
 
             <div class="form-grid two-col">
-              <label>
-                <span>模型</span>
-                <select id="aiModel"></select>
-              </label>
               <label>
                 <span>已有 TXT</span>
                 <select id="overwriteMode">
@@ -398,8 +507,6 @@
               </label>
             </div>
 
-            <p class="card-note" id="localModelMeta">选择模型后可直接加载或验证，验证会做一次真实推理试跑。</p>
-
             <label class="stacked-label">
               <span id="localPromptLabel">Prompt</span>
               <textarea id="customPrompt">仅描述控制图1到结果图的变化，极简描述，中文描述。</textarea>
@@ -411,307 +518,127 @@
               <button class="button-ghost danger deleteTemplateBtn" type="button">删除模板</button>
             </div>
 
-            <p class="config-footnote" id="localPromptModeHint">启动标注请使用顶部命令栏；这里仅调整本地模型参数。</p>
+            <p class="config-footnote" id="localPromptModeHint">启动标注请使用顶部命令栏；这里会应用到当前选择的标注引擎。</p>
           </article>
 
-          <article class="card ai-card">
+          <article class="card ai-card caption-backend-card">
             <div class="card-head">
               <div>
-                <p class="card-kicker">API AI</p>
-                <h2>OpenAI 兼容 API 标注</h2>
+                <p class="card-kicker">Backend</p>
+                <h2>标注引擎</h2>
               </div>
-              <div class="card-actions">
-                <button class="button-ghost" id="loadApiModelsBtn" type="button">刷新模型</button>
-                <button class="button-ghost" id="validateApiBtn" type="button">验证 API</button>
-              </div>
+              <p class="card-note">选择需要配置的引擎，顶部命令栏会同步使用同一选择。</p>
             </div>
-            <p class="card-note">适用于 OpenAI 兼容的多模态接口，例如官方兼容端点、自建服务或第三方兼容网关。</p>
 
-            <div class="form-grid">
-              <label>
-                <span>API Base URL</span>
-                <input id="apiBaseUrl" placeholder="https://api.openai.com/v1">
-              </label>
-              <label>
-                <span>API Key</span>
-                <input id="apiKey" type="password" placeholder="sk-...">
-              </label>
-              <label class="model-picker-field">
-                <span>模型名</span>
-                <div class="model-picker" id="apiModelPicker">
-                  <input id="apiModelName" placeholder="gpt-4.1-mini / qwen-vl-plus / your-model" autocomplete="off">
-                  <button class="model-picker-button" id="apiModelMenuBtn" type="button">选择</button>
-                  <div class="model-picker-menu" id="apiModelMenu" hidden>
-                    <input id="apiModelSearch" placeholder="搜索模型">
-                    <div class="model-picker-list" id="apiModelList"></div>
-                  </div>
+            <div class="caption-backend-tabs" id="captionBackendTabs" role="tablist" aria-label="标注引擎设置">
+              <button class="active" data-caption-backend="local" type="button" role="tab" aria-selected="true">本地标注</button>
+              <button data-caption-backend="api" type="button" role="tab" aria-selected="false">API 标注</button>
+              <button data-caption-backend="ollama" type="button" role="tab" aria-selected="false">Ollama 标注</button>
+            </div>
+
+            <section class="caption-backend-panel active" data-caption-backend-panel="local" role="tabpanel">
+              <div class="card-head compact-head">
+                <div>
+                  <p class="card-kicker">Local Qwen</p>
+                  <h2>本地 Qwen3.5 标注</h2>
                 </div>
-              </label>
-            </div>
-
-            <div class="form-grid two-col">
-              <label>
-                <span>已有 TXT</span>
-                <select id="apiOverwriteMode">
-                  <option value="skip">跳过</option>
-                  <option value="append">追加</option>
-                  <option value="modify">修改</option>
-                  <option value="overwrite">覆盖</option>
-                </select>
-              </label>
-              <label>
-                <span>描述模式</span>
-                <select id="apiCaptionMode">
-                  <option value="natural">自然语言</option>
-                  <option value="detail">详细描述</option>
-                  <option value="tag">Tag 格式</option>
-                  <option value="short">简短</option>
-                </select>
-              </label>
-              <label>
-                <span>最大 Token</span>
-                <input id="apiMaxTokens" type="number" value="512" min="64" max="4096" step="64">
-              </label>
-            </div>
-
-            <label class="stacked-label">
-              <span id="apiPromptLabel">API Prompt</span>
-              <textarea id="apiPrompt">Write one clean English caption for this image for Stable Diffusion LoRA training. Focus on subject, material, texture, color, lighting, pose, camera angle, and scene. Keep it under 60 words.</textarea>
-            </label>
-            <div class="template-row" data-template-target="apiPrompt">
-              <select class="promptTemplateSelect"></select>
-              <button class="button-ghost applyTemplateBtn" type="button">套用模板</button>
-              <button class="button-ghost saveTemplateBtn" type="button">保存为模板</button>
-              <button class="button-ghost danger deleteTemplateBtn" type="button">删除模板</button>
-            </div>
-
-            <p class="config-footnote" id="apiPromptModeHint">选择顶部“OpenAI 兼容 API”后，标注按钮会自动使用这组配置。</p>
-          </article>
-
-          <article class="card ai-card">
-            <div class="card-head">
-              <div>
-                <p class="card-kicker">Ollama</p>
-                <h2>本地 Ollama 标注</h2>
-              </div>
-              <div class="card-actions">
-                <button class="button-ghost" id="loadOllamaModelsBtn" type="button">读取模型</button>
-                <button class="button-ghost" id="validateOllamaBtn" type="button">验证 Ollama</button>
-              </div>
-            </div>
-            <p class="card-note">通过本地网址调用 Ollama 多模态模型，例如 `http://127.0.0.1:11434`。</p>
-
-            <div class="form-grid">
-              <label>
-                <span>Ollama URL</span>
-                <input id="ollamaBaseUrl" placeholder="http://127.0.0.1:11434">
-              </label>
-              <label class="model-picker-field">
-                <span>模型名</span>
-                <div class="model-picker" id="ollamaModelPicker">
-                  <input id="ollamaModelName" placeholder="qwen2.5vl:7b / minicpm-v / your-model" autocomplete="off">
-                  <button class="model-picker-button" id="ollamaModelMenuBtn" type="button">选择</button>
-                  <div class="model-picker-menu" id="ollamaModelMenu" hidden>
-                    <input id="ollamaModelSearch" placeholder="搜索模型">
-                    <div class="model-picker-list" id="ollamaModelList"></div>
-                  </div>
+                <div class="card-actions">
+                  <button class="button-ghost" id="installDepsBtn" type="button">安装 Qwen 依赖到 .venv</button>
+                  <button class="button-ghost" id="loadModelBtn" type="button">加载模型</button>
+                  <button class="button-ghost" id="validateLocalBtn" type="button">验证模型</button>
                 </div>
-              </label>
-            </div>
-
-            <div class="form-grid two-col">
-              <label>
-                <span>已有 TXT</span>
-                <select id="ollamaOverwriteMode">
-                  <option value="skip">跳过</option>
-                  <option value="append">追加</option>
-                  <option value="modify">修改</option>
-                  <option value="overwrite">覆盖</option>
-                </select>
-              </label>
-              <label>
-                <span>描述模式</span>
-                <select id="ollamaCaptionMode">
-                  <option value="natural">自然语言</option>
-                  <option value="detail">详细描述</option>
-                  <option value="tag">Tag 格式</option>
-                  <option value="short">简短</option>
-                </select>
-              </label>
-              <label>
-                <span>最大 Token</span>
-                <input id="ollamaMaxTokens" type="number" value="512" min="64" max="4096" step="64">
-              </label>
-            </div>
-
-            <label class="stacked-label">
-              <span id="ollamaPromptLabel">Ollama Prompt</span>
-              <textarea id="ollamaPrompt">Write one clean English caption for this image for Stable Diffusion LoRA training. Focus on subject, material, texture, color, lighting, pose, camera angle, and scene. Keep it under 60 words.</textarea>
-            </label>
-            <div class="template-row" data-template-target="ollamaPrompt">
-              <select class="promptTemplateSelect"></select>
-              <button class="button-ghost applyTemplateBtn" type="button">套用模板</button>
-              <button class="button-ghost saveTemplateBtn" type="button">保存为模板</button>
-              <button class="button-ghost danger deleteTemplateBtn" type="button">删除模板</button>
-            </div>
-
-            <p class="config-footnote" id="ollamaPromptModeHint">选择顶部“Ollama”后，标注按钮会自动使用这组配置。</p>
-          </article>
-
-        </section>
-
-        <section class="utility-panel" data-panel="batch">
-          <article class="card batch-card">
-            <div class="card-head">
-              <div>
-                <p class="card-kicker">Batch Tools</p>
-                <h2>批量整理</h2>
               </div>
-              <p class="card-note">作用于当前筛选结果。</p>
-            </div>
-            <div class="batch-grid">
-              <input id="batchAddInput" placeholder="添加短语，逗号分隔">
-              <button class="button-ghost" id="batchAddBtn" type="button">批量添加</button>
-              <input id="batchDeleteInput" placeholder="删除短语 / 片段，逗号分隔">
-              <button class="button-ghost danger" id="batchDeleteBtn" type="button">批量删除</button>
-              <input id="batchReplaceOld" placeholder="旧短语">
-              <input id="batchReplaceNew" placeholder="新短语（留空表示删除）">
-              <button class="button-ghost warn span-2" id="batchReplaceBtn" type="button">批量替换</button>
-              <button class="button-ghost danger span-2" id="deleteCurrentBtn" type="button">从导出集中排除当前条目</button>
-            </div>
-          </article>
-
-          <article class="card activity-card elevated">
-            <div class="card-head">
-              <div>
-                <p class="card-kicker">Activity</p>
-                <h2>任务状态</h2>
+              <p class="card-note">仅保留 Qwen3.5，模型默认落在项目内 `models/Qwen3.5-*`；悬停下方说明可看兼容来源与路径。</p>
+              <div class="form-grid">
+                <label>
+                  <span>模型</span>
+                  <select id="aiModel"></select>
+                </label>
               </div>
-              <p class="card-note">本地模型、API 标注、Ollama 和批量过程的统一状态区。</p>
-            </div>
-            <div class="summary-grid">
-              <div class="summary-row">
-                <span>本地状态</span>
-                <strong id="localAiStatusText">待命</strong>
+              <p class="card-note" id="localModelMeta">选择模型后可直接加载或验证，验证会做一次真实推理试跑。</p>
+            </section>
+
+            <section class="caption-backend-panel" data-caption-backend-panel="api" role="tabpanel" hidden>
+              <div class="card-head compact-head">
+                <div>
+                  <p class="card-kicker">API AI</p>
+                  <h2>OpenAI 兼容 API 标注</h2>
+                </div>
+                <div class="card-actions">
+                  <button class="button-ghost" id="loadApiModelsBtn" type="button">刷新模型</button>
+                  <button class="button-ghost" id="validateApiBtn" type="button">验证 API</button>
+                </div>
               </div>
-              <div class="summary-row">
-                <span>API 状态</span>
-                <strong id="apiAiStatusText">待命</strong>
+              <p class="card-note">适用于 OpenAI 兼容的多模态接口，例如官方兼容端点、自建服务或第三方兼容网关。</p>
+              <div class="form-grid">
+                <label>
+                  <span>API Base URL</span>
+                  <input id="apiBaseUrl" placeholder="https://api.openai.com/v1">
+                </label>
+                <label>
+                  <span>API Key</span>
+                  <input id="apiKey" type="password" placeholder="sk-...">
+                </label>
+                <label class="model-picker-field">
+                  <span>模型名</span>
+                  <div class="model-picker" id="apiModelPicker">
+                    <input id="apiModelName" placeholder="gpt-4.1-mini / qwen-vl-plus / your-model" autocomplete="off">
+                    <button class="model-picker-button" id="apiModelMenuBtn" type="button" aria-label="展开 API 模型列表" aria-expanded="false"></button>
+                    <div class="model-picker-menu" id="apiModelMenu" hidden>
+                      <input id="apiModelSearch" placeholder="搜索模型">
+                      <div class="model-picker-list" id="apiModelList"></div>
+                    </div>
+                  </div>
+                </label>
               </div>
-              <div class="summary-row">
-                <span>Ollama 状态</span>
-                <strong id="ollamaAiStatusText">待命</strong>
+            </section>
+
+            <section class="caption-backend-panel" data-caption-backend-panel="ollama" role="tabpanel" hidden>
+              <div class="card-head compact-head">
+                <div>
+                  <p class="card-kicker">Ollama</p>
+                  <h2>本地 Ollama 标注</h2>
+                </div>
+                <div class="card-actions">
+                  <button class="button-ghost" id="loadOllamaModelsBtn" type="button">读取模型</button>
+                  <button class="button-ghost" id="validateOllamaBtn" type="button">验证 Ollama</button>
+                </div>
               </div>
-            </div>
-            <div class="progress-shell">
-              <div class="progress-bar" id="aiProgressBar"></div>
-            </div>
-            <div class="status-line" id="aiStatusLine">等待启动服务</div>
-          </article>
-        </section>
-
-        <section class="utility-panel single-page-panel" data-panel="process">
-          <article class="card export-card">
-            <div class="card-head">
-              <div>
-                <p class="card-kicker">Image Process</p>
-                <h2>预处理标注图像</h2>
+              <p class="card-note">通过本地网址调用 Ollama 多模态模型，例如 `http://127.0.0.1:11434`。</p>
+              <div class="form-grid">
+                <label>
+                  <span>Ollama URL</span>
+                  <input id="ollamaBaseUrl" placeholder="http://127.0.0.1:11434">
+                </label>
+                <label class="model-picker-field">
+                  <span>模型名</span>
+                  <div class="model-picker" id="ollamaModelPicker">
+                    <input id="ollamaModelName" placeholder="qwen2.5vl:7b / minicpm-v / your-model" autocomplete="off">
+                    <button class="model-picker-button" id="ollamaModelMenuBtn" type="button" aria-label="展开 Ollama 模型列表" aria-expanded="false"></button>
+                    <div class="model-picker-menu" id="ollamaModelMenu" hidden>
+                      <input id="ollamaModelSearch" placeholder="搜索模型">
+                      <div class="model-picker-list" id="ollamaModelList"></div>
+                    </div>
+                  </div>
+                </label>
               </div>
-              <p class="card-note">使用 Lanczos 生成缩放裁切后的工作集，可先加载再进行 AI 标注。</p>
-            </div>
-
-            <div class="form-grid two-col">
-              <label>
-                <span>工作集名称</span>
-                <input id="processProjectName" placeholder="例如：越野风格">
-              </label>
-              <label>
-                <span>目标像素</span>
-                <select id="exportTargetPixels">
-                  <option value="1">1 百万像素</option>
-                  <option value="2">2 百万像素</option>
-                  <option value="3">3 百万像素</option>
-                  <option value="4" selected>4 百万像素</option>
-                </select>
-              </label>
-              <label>
-                <span>尺寸倍数</span>
-                <select id="exportSizeMultiple">
-                  <option value="16" selected>16 的倍数</option>
-                  <option value="32">32 的倍数</option>
-                  <option value="64">64 的倍数</option>
-                </select>
-              </label>
-            </div>
-
-            <label class="toggle-row">
-              <input id="processIncludeControls" type="checkbox" checked>
-              <span>同时处理当前启用的控制图目录</span>
-            </label>
-            <label class="toggle-row">
-              <input id="processLoadWorkspace" type="checkbox" checked>
-              <span>处理完成后加载为当前工作区</span>
-            </label>
-            <label class="toggle-row">
-              <input id="processOnlyMismatched" type="checkbox" checked>
-              <span>批量匹配结果尺寸时只重采样尺寸不一致项，已匹配项直接复制</span>
-            </label>
-            <div class="action-row">
-              <button class="button-primary" id="processImagesBtn" type="button">处理图像工作集</button>
-              <button class="button-ghost" id="processMatchResultBtn" type="button">批量匹配结果尺寸</button>
-            </div>
-            <div class="progress-shell">
-              <div class="progress-bar" id="processProgressBar"></div>
-            </div>
-            <div class="export-status" id="processStatus">等待图像处理</div>
-          </article>
-        </section>
-
-        <section class="utility-panel single-page-panel" data-panel="export">
-          <article class="card export-card">
-            <div class="card-head">
-              <div>
-                <p class="card-kicker">Dataset Export</p>
-                <h2>导出完成数据集</h2>
-              </div>
-              <p class="card-note">建议先在图像处理面板生成工作集再标注；导出不会改动原始目录。</p>
-            </div>
-
-            <div class="form-grid two-col">
-              <label>
-                <span>项目名称</span>
-                <input id="exportProjectName" placeholder="例如：越野风格">
-              </label>
-              <label>
-                <span>导出格式</span>
-                <select id="exportFormat">
-                  <option value="zip">下载 ZIP</option>
-                  <option value="folder">导出为文件夹</option>
-                </select>
-              </label>
-              <label>
-                <span>文件夹导出父目录</span>
-                <input id="exportOutputDir" placeholder="留空则导出到项目 datasets/exports">
-              </label>
-            </div>
-
-            <label class="toggle-row">
-              <input id="exportProcessImages" type="checkbox" checked>
-              <span>导出时按图像处理参数再次缩放并中心裁切</span>
-            </label>
-            <label class="toggle-row">
-              <input id="exportIncludeControls" type="checkbox" checked>
-              <span>同时导出当前启用的控制图目录</span>
-            </label>
-
-            <div class="action-row">
-              <button class="button-primary" id="exportDatasetBtn" type="button">导出数据集</button>
-            </div>
-            <div class="export-status" id="exportStatus">等待导出</div>
+            </section>
           </article>
         </section>
       </section>
     </main>
+
+    <footer class="bottom-status-bar" aria-label="工作台状态栏">
+      <span class="bottom-status-item" title="当前加载的项目名称" aria-label="当前加载的项目名称"><span>当前项目</span> <strong id="workspaceStat">未加载项目</strong></span>
+      <span class="bottom-status-item" title="当前选中图片在筛选结果中的序号" aria-label="当前选中图片在筛选结果中的序号"><span>当前图片数</span> <strong id="focusStat">0</strong></span>
+      <span class="bottom-status-item" title="已加载控制图的数量" aria-label="已加载控制图的数量"><span>控制图数</span> <strong id="metricControlImages">0</strong></span>
+      <span class="bottom-status-item" title="已加载结果图的数量" aria-label="已加载结果图的数量"><span>结果图数</span> <strong id="metricResultImages">0</strong></span>
+      <span class="bottom-status-item" title="已有 TXT 标注文件的数量" aria-label="已有 TXT 标注文件的数量"><span>已打标数</span> <strong id="metricTxt">0</strong></span>
+      <span class="bottom-status-item" title="当前筛选条件下显示的条目数量" aria-label="当前筛选条件下显示的条目数量"><span>符合筛选数</span> <strong id="metricFiltered">0</strong></span>
+      <span class="bottom-status-item" title="本地模型服务的运行状态" aria-label="本地模型服务的运行状态"><span>本地模型状态</span> <strong id="localAiStatusText">未配置</strong></span>
+      <span class="bottom-status-item" title="API 标注服务的配置与请求状态" aria-label="API 标注服务的配置与请求状态"><span>API 状态</span> <strong id="apiAiStatusText">未配置</strong></span>
+      <span class="bottom-status-item" title="Ollama 服务的配置与请求状态" aria-label="Ollama 服务的配置与请求状态"><span>Ollama 状态</span> <strong id="ollamaAiStatusText">未配置</strong></span>
+    </footer>
   </div>
 
   <template id="tagChipTemplate">

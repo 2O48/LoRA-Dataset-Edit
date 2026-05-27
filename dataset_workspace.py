@@ -205,7 +205,7 @@ class DatasetWorkspace:
     ) -> dict:
         with self._lock:
             if control_count is not None:
-                self.control_count = max(1, min(3, int(control_count)))
+                self.control_count = max(0, min(3, int(control_count)))
             if ignore_tokens is not None:
                 self.ignore_tokens = _parse_ignore_tokens(ignore_tokens)
 
@@ -291,7 +291,7 @@ class DatasetWorkspace:
     ) -> dict:
         with self._lock:
             if control_count is not None:
-                self.control_count = max(1, min(3, int(control_count)))
+                self.control_count = max(0, min(3, int(control_count)))
 
             incoming_dirs: dict[str, Optional[Path]] = {role: None for role in IMAGE_ROLES}
             for key, value in (
@@ -427,6 +427,49 @@ class DatasetWorkspace:
     def _has_caption(self, name: str) -> bool:
         return name in self.txt_files or name in self.caption_overrides
 
+    def apply_name_aliases(self, aliases: dict[str, str]) -> dict:
+        with self._lock:
+            if not isinstance(aliases, dict) or not aliases:
+                return self.get_workspace_summary()
+
+            used_names: set[str] = set()
+            rename_map: dict[str, str] = {}
+            for name in self.file_names:
+                alias = str(aliases.get(name, "") or "").strip().replace("\\", "/")
+                next_name = alias or name
+                next_name = self._ensure_unique_name(next_name, used_names)
+                used_names.add(next_name)
+                rename_map[name] = next_name
+
+            if all(old == new for old, new in rename_map.items()):
+                return self.get_workspace_summary()
+
+            self.file_names = [rename_map[name] for name in self.file_names]
+            for role in IMAGE_ROLES:
+                self.files[role] = {
+                    rename_map.get(name, name): path
+                    for name, path in self.files[role].items()
+                }
+            self.txt_files = {
+                rename_map.get(name, name): path
+                for name, path in self.txt_files.items()
+            }
+            self.txt_content = {
+                rename_map.get(name, name): content
+                for name, content in self.txt_content.items()
+            }
+            self.caption_overrides = {
+                rename_map.get(name, name): content
+                for name, content in self.caption_overrides.items()
+            }
+            self.excluded_names = {rename_map.get(name, name) for name in self.excluded_names}
+            self._image_sizes.clear()
+            self._resolution_mismatch.clear()
+            self._resolution_index_ready = False
+            self._mark_global_segments_dirty()
+            self.file_names = sorted(self.file_names, key=_natural_key)
+            return self.get_workspace_summary()
+
     def _normalize_match_part(self, value: str, *, strip_role_patterns: bool) -> str:
         value = (value or "").strip().lower()
         for token in self.ignore_tokens:
@@ -542,6 +585,7 @@ class DatasetWorkspace:
             self._ensure_resolution_index()
             visible_names = set(self.file_names)
             return {
+                "workspace_key": self.workspace_key or self._compute_workspace_key(),
                 "dirs": {key: str(value) if value else "" for key, value in self.dirs.items()},
                 "settings": {
                     "control_count": self.control_count,

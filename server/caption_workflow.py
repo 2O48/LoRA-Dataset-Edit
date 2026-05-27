@@ -151,7 +151,8 @@ def remove_validation_images(paths: list[str]):
 
 def collect_item_images(item: dict, *, control_count: int = 3) -> list[str]:
     paths: list[str] = []
-    for role in ("control1", "control2", "control3")[: max(1, min(3, int(control_count or 1)))]:
+    count = 1 if control_count is None else int(control_count)
+    for role in ("control1", "control2", "control3")[: max(0, min(3, count))]:
         value = item["paths"].get(role, "")
         if value:
             paths.append(value)

@@ -72,21 +72,7 @@ export function createCaptionModule({
         label: refs.localPromptLabel,
         hint: refs.localPromptModeHint,
         defaultLabel: "Prompt",
-        defaultHint: "启动标注请使用顶部命令栏；这里仅调整本地模型参数。",
-      },
-      {
-        select: refs.apiOverwriteMode,
-        label: refs.apiPromptLabel,
-        hint: refs.apiPromptModeHint,
-        defaultLabel: "API Prompt",
-        defaultHint: "选择顶部“OpenAI 兼容 API”后，标注按钮会自动使用这组配置。",
-      },
-      {
-        select: refs.ollamaOverwriteMode,
-        label: refs.ollamaPromptLabel,
-        hint: refs.ollamaPromptModeHint,
-        defaultLabel: "Ollama Prompt",
-        defaultHint: "选择顶部“Ollama”后，标注按钮会自动使用这组配置。",
+        defaultHint: "启动标注请使用顶部命令栏；这里会应用到当前选择的标注引擎。",
       },
     ];
 
@@ -161,6 +147,7 @@ export function createCaptionModule({
     state.apiModelMenuOpen = false;
     refs.apiModelMenu.hidden = true;
     refs.apiModelMenuBtn?.setAttribute("aria-expanded", "false");
+    refs.apiModelPicker?.classList.remove("drop-up");
   }
 
   function selectApiModel(name) {
@@ -174,6 +161,7 @@ export function createCaptionModule({
     state.ollamaModelMenuOpen = false;
     refs.ollamaModelMenu.hidden = true;
     refs.ollamaModelMenuBtn?.setAttribute("aria-expanded", "false");
+    refs.ollamaModelPicker?.classList.remove("drop-up");
   }
 
   function selectOllamaModel(name) {
@@ -225,6 +213,7 @@ export function createCaptionModule({
     state.apiModelQuery = "";
     refs.apiModelSearch.value = "";
     renderApiModelSuggestions();
+    positionModelMenu(refs.apiModelPicker, refs.apiModelMenu);
     if (focusSearch) refs.apiModelSearch.focus();
   }
 
@@ -236,7 +225,22 @@ export function createCaptionModule({
     state.ollamaModelQuery = "";
     refs.ollamaModelSearch.value = "";
     renderOllamaSuggestions();
+    positionModelMenu(refs.ollamaModelPicker, refs.ollamaModelMenu);
     if (focusSearch) refs.ollamaModelSearch.focus();
+  }
+
+  function positionModelMenu(picker, menu) {
+    if (!picker || !menu) return;
+    picker.classList.remove("drop-up");
+    const pickerRect = picker.getBoundingClientRect();
+    const menuHeight = menu.offsetHeight || 260;
+    const panelRect = picker.closest(".utility-panel.active")?.getBoundingClientRect();
+    const boundaryTop = panelRect ? Math.max(0, panelRect.top) : 0;
+    const boundaryBottom = panelRect ? Math.min(window.innerHeight, panelRect.bottom) : window.innerHeight;
+    const gap = 8;
+    const spaceBelow = boundaryBottom - pickerRect.bottom;
+    const spaceAbove = pickerRect.top - boundaryTop;
+    picker.classList.toggle("drop-up", spaceBelow < menuHeight + gap && spaceAbove > spaceBelow);
   }
 
   function summarizeRemoteService(service, idleLabel) {
@@ -249,6 +253,39 @@ export function createCaptionModule({
     return idleLabel;
   }
 
+  function configuredModelStatus(value, fallback = "未配置") {
+    const model = `${value || ""}`.trim();
+    return model || fallback;
+  }
+
+  function localModelStatus(ai) {
+    if (!refs.aiModel?.value) return "未配置";
+    const selected = refs.aiModel.value;
+    if (!ai) return selected;
+    if (ai.service.ready) {
+      const loaded = ai.service.loaded_models?.join(", ") || selected;
+      return `已加载 · ${loaded}`;
+    }
+    if (ai.service.running) return `${ai.service.status} · ${selected}`;
+    return selected;
+  }
+
+  function apiModelStatus(ai) {
+    const selected = refs.apiModelName?.value?.trim() || ai?.api_service?.last_model || "";
+    if (!selected) return "未配置";
+    if (ai?.api_service?.status === "requesting") return `请求中 · ${selected}`;
+    if (ai?.api_service?.status === "error") return `错误 · ${selected}`;
+    return selected;
+  }
+
+  function ollamaModelStatus(ai) {
+    const selected = refs.ollamaModelName?.value?.trim() || ai?.ollama_service?.last_model || "";
+    if (!selected) return "未配置";
+    if (ai?.ollama_service?.status === "requesting") return `请求中 · ${selected}`;
+    if (ai?.ollama_service?.status === "error") return `错误 · ${selected}`;
+    return selected;
+  }
+
   function setOptionalText(ref, value) {
     if (ref) ref.textContent = value;
   }
@@ -256,15 +293,16 @@ export function createCaptionModule({
   function renderAiStatus() {
     const ai = state.aiStatus;
     if (!ai) {
-      refs.aiStat.textContent = `AI 待命 · ${activeCaptionBackendLabel()}`;
+      if (refs.aiStat) refs.aiStat.textContent = `AI 待命 · ${activeCaptionBackendLabel()}`;
       setOptionalText(refs.localAiSummary, "未启动");
       setOptionalText(refs.apiAiSummary, "未配置");
       setOptionalText(refs.ollamaAiSummary, "未配置");
-      setOptionalText(refs.localAiStatusText, "待命");
-      setOptionalText(refs.apiAiStatusText, "待命");
-      setOptionalText(refs.ollamaAiStatusText, "待命");
+      setOptionalText(refs.localAiStatusText, "未启动");
+      setOptionalText(refs.apiAiStatusText, "未配置");
+      setOptionalText(refs.ollamaAiStatusText, "未配置");
       setAiStatusLine("等待启动服务");
-      refs.aiProgressBar.style.width = "0%";
+      if (refs.aiProgressBar) refs.aiProgressBar.style.width = "0%";
+      if (refs.topAiProgressBar) refs.topAiProgressBar.style.width = "0%";
       renderImageProcessStatus(null);
       return;
     }
@@ -288,19 +326,19 @@ export function createCaptionModule({
 
     if (ai.image_process?.running) {
       const modeLabel = ai.image_process.mode === "match_result" ? "匹配结果尺寸" : "图像处理";
-      refs.aiStat.textContent = `${modeLabel} ${ai.image_process.done}/${ai.image_process.total}`;
+      if (refs.aiStat) refs.aiStat.textContent = `${modeLabel} ${ai.image_process.done}/${ai.image_process.total}`;
     } else if (ai.batch.running) {
       const backendLabel =
         ai.batch.backend === "api" ? "API 批量" : ai.batch.backend === "ollama" ? "Ollama 批量" : "本地批量";
-      refs.aiStat.textContent = `${backendLabel} ${ai.batch.done}/${ai.batch.total}`;
+      if (refs.aiStat) refs.aiStat.textContent = `${backendLabel} ${ai.batch.done}/${ai.batch.total}`;
     } else if (ai.service.ready) {
-      refs.aiStat.textContent = `本地就绪 · ${ai.service.loaded_models.join(", ") || "无模型"}`;
+      if (refs.aiStat) refs.aiStat.textContent = `本地就绪 · ${ai.service.loaded_models.join(", ") || "无模型"}`;
     } else if (ai.ollama_service.last_model) {
-      refs.aiStat.textContent = `Ollama 最近使用 · ${ai.ollama_service.last_model}`;
+      if (refs.aiStat) refs.aiStat.textContent = `Ollama 最近使用 · ${ai.ollama_service.last_model}`;
     } else if (ai.api_service.last_model) {
-      refs.aiStat.textContent = `API 最近使用 · ${ai.api_service.last_model}`;
+      if (refs.aiStat) refs.aiStat.textContent = `API 最近使用 · ${ai.api_service.last_model}`;
     } else {
-      refs.aiStat.textContent = `AI 待命 · ${activeCaptionBackendLabel()}`;
+      if (refs.aiStat) refs.aiStat.textContent = `AI 待命 · ${activeCaptionBackendLabel()}`;
     }
 
     const statusLine = ai.image_process?.running
@@ -329,7 +367,9 @@ export function createCaptionModule({
             : ["captioning", "loading", "starting", "busy"].includes(ai.service.status)
               ? Math.max(ai.service.progress_pct || 0, 20)
               : ai.service.progress_pct || 0;
-    refs.aiProgressBar.style.width = `${Math.max(0, Math.min(progress, 100))}%`;
+    const progressWidth = `${Math.max(0, Math.min(progress, 100))}%`;
+    if (refs.aiProgressBar) refs.aiProgressBar.style.width = progressWidth;
+    if (refs.topAiProgressBar) refs.topAiProgressBar.style.width = progressWidth;
 
   }
 
@@ -351,10 +391,10 @@ export function createCaptionModule({
       model: refs.apiModelName.value.trim(),
       api_base_url: refs.apiBaseUrl.value.trim(),
       api_key: refs.apiKey.value.trim(),
-      overwrite_mode: refs.apiOverwriteMode.value,
-      mode: refs.apiCaptionMode.value,
-      prompt: refs.apiPrompt.value,
-      max_tokens: Number(refs.apiMaxTokens.value || 512),
+      overwrite_mode: refs.overwriteMode.value,
+      mode: refs.captionMode.value,
+      prompt: refs.customPrompt.value,
+      max_tokens: Number(refs.maxTokens.value || 512),
     };
   }
 
@@ -363,15 +403,20 @@ export function createCaptionModule({
       backend: "ollama",
       model: refs.ollamaModelName.value.trim(),
       ollama_base_url: refs.ollamaBaseUrl.value.trim() || DEFAULT_OLLAMA_URL,
-      overwrite_mode: refs.ollamaOverwriteMode.value,
-      mode: refs.ollamaCaptionMode.value,
-      prompt: refs.ollamaPrompt.value,
-      max_tokens: Number(refs.ollamaMaxTokens.value || 512),
+      overwrite_mode: refs.overwriteMode.value,
+      mode: refs.captionMode.value,
+      prompt: refs.customPrompt.value,
+      max_tokens: Number(refs.maxTokens.value || 512),
     };
   }
 
   async function loadModel() {
-    await apiPost("/api/ai/load", { model: refs.aiModel.value });
+    try {
+      await apiPost("/api/ai/load", { model: refs.aiModel.value });
+    } catch (error) {
+      if (!/cancelled|canceled|取消/.test(error.message || "")) throw error;
+      setAiStatusLine("已取消本地模型加载");
+    }
     await pollAiStatus();
   }
 
@@ -397,7 +442,7 @@ export function createCaptionModule({
     await validateBackend(
       {
         ...apiCaptionPayload(),
-        max_tokens: Math.min(Number(refs.apiMaxTokens.value || 128), 128),
+        max_tokens: Math.min(Number(refs.maxTokens.value || 128), 128),
       },
       "API",
     );
@@ -407,7 +452,7 @@ export function createCaptionModule({
     await validateBackend(
       {
         ...ollamaCaptionPayload(),
-        max_tokens: Math.min(Number(refs.ollamaMaxTokens.value || 128), 128),
+        max_tokens: Math.min(Number(refs.maxTokens.value || 128), 128),
       },
       "Ollama",
     );
@@ -568,20 +613,16 @@ export function createCaptionModule({
     if (refs.captionBackend) {
       restoreSelectValue(refs.captionBackend, STORAGE_KEYS.captionBackend, "local");
     }
+    refs.overwriteMode.value = readStored(STORAGE_KEYS.localOverwriteMode, refs.overwriteMode.value);
+    refs.captionMode.value = readStored(STORAGE_KEYS.localCaptionMode, refs.captionMode.value);
+    refs.maxTokens.value = readStored(STORAGE_KEYS.localMaxTokens, refs.maxTokens.value);
+    refs.customPrompt.value = readStored(STORAGE_KEYS.localPrompt, refs.customPrompt.value);
+
     refs.apiBaseUrl.value = readStored(STORAGE_KEYS.apiBaseUrl, "");
     refs.apiKey.value = readStored(STORAGE_KEYS.apiKey, "");
     refs.apiModelName.value = readStored(STORAGE_KEYS.apiModelName, "");
-    refs.apiOverwriteMode.value = readStored(STORAGE_KEYS.apiOverwriteMode, refs.apiOverwriteMode.value);
-    refs.apiCaptionMode.value = readStored(STORAGE_KEYS.apiCaptionMode, refs.apiCaptionMode.value);
-    refs.apiMaxTokens.value = readStored(STORAGE_KEYS.apiMaxTokens, refs.apiMaxTokens.value);
-    refs.apiPrompt.value = readStored(STORAGE_KEYS.apiPrompt, refs.apiPrompt.value);
-
     refs.ollamaBaseUrl.value = readStored(STORAGE_KEYS.ollamaBaseUrl, DEFAULT_OLLAMA_URL);
     refs.ollamaModelName.value = readStored(STORAGE_KEYS.ollamaModelName, "");
-    refs.ollamaOverwriteMode.value = readStored(STORAGE_KEYS.ollamaOverwriteMode, refs.ollamaOverwriteMode.value);
-    refs.ollamaCaptionMode.value = readStored(STORAGE_KEYS.ollamaCaptionMode, refs.ollamaCaptionMode.value);
-    refs.ollamaMaxTokens.value = readStored(STORAGE_KEYS.ollamaMaxTokens, refs.ollamaMaxTokens.value);
-    refs.ollamaPrompt.value = readStored(STORAGE_KEYS.ollamaPrompt, refs.ollamaPrompt.value);
   }
 
   return {

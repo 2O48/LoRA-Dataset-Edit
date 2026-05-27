@@ -93,6 +93,20 @@ class DatasetWorkspaceTextTests(unittest.TestCase):
             self.assertTrue(item["exists"]["control1"])
             self.assertTrue(item["exists"]["result"])
 
+    def test_apply_name_aliases_restores_relative_item_name(self):
+        workspace = DatasetWorkspace()
+        with tempfile.TemporaryDirectory() as result_dir:
+            result_path = Path(result_dir)
+            Image.new("RGB", (32, 32), (30, 20, 10)).save(result_path / "display_off.png")
+            workspace.open_dirs(result_dir=str(result_path), control_count=1)
+
+            summary = workspace.apply_name_aliases({"display_off": "system/display_off"})
+            items = workspace.list_items()["items"]
+
+            self.assertEqual(summary["counts"]["all"], 1)
+            self.assertEqual(items[0]["name"], "system/display_off")
+            self.assertIsNotNone(workspace.resolve_image_path("result", "system/display_off"))
+
     def test_merge_dirs_appends_additional_dataset(self):
         workspace = DatasetWorkspace()
         with tempfile.TemporaryDirectory() as base_control, \

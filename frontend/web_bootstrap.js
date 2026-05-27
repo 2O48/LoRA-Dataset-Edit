@@ -11,6 +11,7 @@ export function createBootstrapModule({
   runWithStatus,
   showError,
   setUtilityPanel,
+  toggleCaptionSettingsPanel,
   setAiStatusLine,
   activeCaptionBackendLabel,
   activeCaptionPayload,
@@ -42,6 +43,7 @@ export function createBootstrapModule({
   loadWorkspace,
   rescanWorkspace,
   saveCurrentProject,
+  saveProjectAsNew,
   refreshProjects,
   cleanupTmpNow,
   saveCurrentCaption,
@@ -108,6 +110,7 @@ export function createBootstrapModule({
   }
 
   function bindSettingsPersistence() {
+    const refreshModelStatus = () => renderAiStatus();
     refs.controlCount.addEventListener("change", () => {
       saveStored(STORAGE_KEYS.controlCount, refs.controlCount.value);
       updateControlFieldVisibility();
@@ -146,33 +149,66 @@ export function createBootstrapModule({
     refs.aiModel.addEventListener("change", () => {
       saveStored(STORAGE_KEYS.localModel, refs.aiModel.value);
       renderOverwriteModeHints();
+      refreshModelStatus();
     });
+    refs.overwriteMode.addEventListener("change", () => saveStored(STORAGE_KEYS.localOverwriteMode, refs.overwriteMode.value));
     refs.overwriteMode.addEventListener("change", renderOverwriteModeHints);
+    refs.captionMode.addEventListener("change", () => saveStored(STORAGE_KEYS.localCaptionMode, refs.captionMode.value));
+    refs.maxTokens.addEventListener("change", () => saveStored(STORAGE_KEYS.localMaxTokens, refs.maxTokens.value));
+    refs.customPrompt.addEventListener("change", () => saveStored(STORAGE_KEYS.localPrompt, refs.customPrompt.value));
 
-    refs.captionBackend?.addEventListener("change", () => {
-      saveStored(STORAGE_KEYS.captionBackend, refs.captionBackend.value);
+    function renderCaptionBackendTabs() {
+      const backend = refs.captionBackend?.value || readStored(STORAGE_KEYS.captionBackend, "local");
+      refs.captionBackendTabs?.querySelectorAll("button[data-caption-backend]").forEach((button) => {
+        const isActive = button.dataset.captionBackend === backend;
+        button.classList.toggle("active", isActive);
+        button.setAttribute("aria-selected", String(isActive));
+      });
+      document.querySelectorAll("[data-caption-backend-panel]").forEach((panel) => {
+        const isActive = panel.dataset.captionBackendPanel === backend;
+        panel.classList.toggle("active", isActive);
+        panel.hidden = !isActive;
+      });
+    }
+
+    function setCaptionBackend(backend) {
+      if (refs.captionBackend) refs.captionBackend.value = backend;
+      saveStored(STORAGE_KEYS.captionBackend, backend);
+      renderCaptionBackendTabs();
       setAiStatusLine(`当前标注引擎：${activeCaptionBackendLabel()}`);
       renderAiStatus();
+    }
+
+    refs.captionBackendTabs?.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-caption-backend]");
+      if (!button) return;
+      setCaptionBackend(button.dataset.captionBackend);
     });
+
+    refs.captionBackend?.addEventListener("change", () => {
+      setCaptionBackend(refs.captionBackend.value);
+    });
+    renderCaptionBackendTabs();
 
     refs.apiBaseUrl.addEventListener("change", () => saveStored(STORAGE_KEYS.apiBaseUrl, refs.apiBaseUrl.value.trim()));
     refs.apiKey.addEventListener("input", () => saveStored(STORAGE_KEYS.apiKey, refs.apiKey.value.trim()));
-    refs.apiModelName.addEventListener("input", () => saveStored(STORAGE_KEYS.apiModelName, refs.apiModelName.value.trim()));
-    refs.apiModelName.addEventListener("change", () => saveStored(STORAGE_KEYS.apiModelName, refs.apiModelName.value.trim()));
-    refs.apiOverwriteMode.addEventListener("change", () => saveStored(STORAGE_KEYS.apiOverwriteMode, refs.apiOverwriteMode.value));
-    refs.apiOverwriteMode.addEventListener("change", renderOverwriteModeHints);
-    refs.apiCaptionMode.addEventListener("change", () => saveStored(STORAGE_KEYS.apiCaptionMode, refs.apiCaptionMode.value));
-    refs.apiMaxTokens.addEventListener("change", () => saveStored(STORAGE_KEYS.apiMaxTokens, refs.apiMaxTokens.value));
-    refs.apiPrompt.addEventListener("change", () => saveStored(STORAGE_KEYS.apiPrompt, refs.apiPrompt.value));
-
+    refs.apiModelName.addEventListener("input", () => {
+      saveStored(STORAGE_KEYS.apiModelName, refs.apiModelName.value.trim());
+      refreshModelStatus();
+    });
+    refs.apiModelName.addEventListener("change", () => {
+      saveStored(STORAGE_KEYS.apiModelName, refs.apiModelName.value.trim());
+      refreshModelStatus();
+    });
     refs.ollamaBaseUrl.addEventListener("change", () => saveStored(STORAGE_KEYS.ollamaBaseUrl, refs.ollamaBaseUrl.value.trim()));
-    refs.ollamaModelName.addEventListener("input", () => saveStored(STORAGE_KEYS.ollamaModelName, refs.ollamaModelName.value.trim()));
-    refs.ollamaModelName.addEventListener("change", () => saveStored(STORAGE_KEYS.ollamaModelName, refs.ollamaModelName.value.trim()));
-    refs.ollamaOverwriteMode.addEventListener("change", () => saveStored(STORAGE_KEYS.ollamaOverwriteMode, refs.ollamaOverwriteMode.value));
-    refs.ollamaOverwriteMode.addEventListener("change", renderOverwriteModeHints);
-    refs.ollamaCaptionMode.addEventListener("change", () => saveStored(STORAGE_KEYS.ollamaCaptionMode, refs.ollamaCaptionMode.value));
-    refs.ollamaMaxTokens.addEventListener("change", () => saveStored(STORAGE_KEYS.ollamaMaxTokens, refs.ollamaMaxTokens.value));
-    refs.ollamaPrompt.addEventListener("change", () => saveStored(STORAGE_KEYS.ollamaPrompt, refs.ollamaPrompt.value));
+    refs.ollamaModelName.addEventListener("input", () => {
+      saveStored(STORAGE_KEYS.ollamaModelName, refs.ollamaModelName.value.trim());
+      refreshModelStatus();
+    });
+    refs.ollamaModelName.addEventListener("change", () => {
+      saveStored(STORAGE_KEYS.ollamaModelName, refs.ollamaModelName.value.trim());
+      refreshModelStatus();
+    });
   }
 
   function readLastWorkspaceOpenPayload() {
@@ -189,13 +225,57 @@ export function createBootstrapModule({
   }
 
   function applyLastWorkspaceOpenPayload(payload) {
+    state.currentProjectId = `${payload.project_id || ""}`;
+    state.currentProjectName = `${payload.project_name || ""}`;
+    if (refs.projectNameInput && state.currentProjectName) refs.projectNameInput.value = state.currentProjectName;
     refs.control1Dir.value = `${payload.control1_dir || ""}`;
     refs.control2Dir.value = `${payload.control2_dir || ""}`;
     refs.control3Dir.value = `${payload.control3_dir || ""}`;
     refs.resultDir.value = `${payload.result_dir || ""}`;
-    refs.controlCount.value = `${payload.control_count || refs.controlCount.value || "1"}`;
+    refs.controlCount.value = `${payload.control_count ?? refs.controlCount.value ?? "1"}`;
     refs.ignoreTokensInput.value = `${payload.ignore_tokens || ""}`;
     updateControlFieldVisibility();
+  }
+
+  function restoreCurrentProjectFromLastWorkspace(workspace) {
+    const payload = readLastWorkspaceOpenPayload();
+    if (!payload) return false;
+    const dirs = workspace?.dirs || {};
+    const sameWorkspace = [
+      [dirs.control1 || "", payload.control1_dir || ""],
+      [dirs.control2 || "", payload.control2_dir || ""],
+      [dirs.control3 || "", payload.control3_dir || ""],
+      [dirs.result || "", payload.result_dir || ""],
+    ].some(([current, remembered]) => remembered && current === remembered);
+    if (!sameWorkspace) return false;
+    state.currentProjectId = `${payload.project_id || ""}`;
+    state.currentProjectName = `${payload.project_name || ""}`;
+    if (refs.projectNameInput && state.currentProjectName) refs.projectNameInput.value = state.currentProjectName;
+    if (refs.projectStatus && state.currentProjectName) {
+      refs.projectStatus.textContent = `当前项目：${state.currentProjectName} · 已载入 ${state.projects.length} 个项目`;
+    }
+    renderWorkspaceSummary();
+    return Boolean(state.currentProjectId || state.currentProjectName);
+  }
+
+  function inferSingleProjectForCurrentWorkspace() {
+    if (state.currentProjectId || state.currentProjectName) return false;
+    if (!state.workspace?.counts?.all || state.projects.length !== 1) return false;
+    const project = state.projects[0];
+    state.currentProjectId = project.id || "";
+    state.currentProjectName = project.name || project.id || "";
+    if (refs.projectNameInput && state.currentProjectName) refs.projectNameInput.value = state.currentProjectName;
+    if (refs.projectStatus && state.currentProjectName) {
+      refs.projectStatus.textContent = `当前项目：${state.currentProjectName} · 已载入 ${state.projects.length} 个项目`;
+    }
+    const payload = readLastWorkspaceOpenPayload() || {};
+    saveStored(STORAGE_KEYS.lastWorkspaceDirs, JSON.stringify({
+      ...payload,
+      project_id: state.currentProjectId,
+      project_name: state.currentProjectName,
+    }));
+    renderWorkspaceSummary();
+    return true;
   }
 
   async function openLastWorkspaceOnStartup() {
@@ -211,6 +291,51 @@ export function createBootstrapModule({
   }
 
   function bindEvents() {
+    function numericCssVar(name, fallback) {
+      const value = window.getComputedStyle(refs.workbenchShell).getPropertyValue(name).trim();
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function setPanelWidthVar(name, value, min, max) {
+      const clamped = Math.max(min, Math.min(max, value));
+      refs.workbenchShell.style.setProperty(name, `${Math.round(clamped)}px`);
+      window.localStorage.setItem(`lora-ui.${name.replace(/^--/, "")}`, String(Math.round(clamped)));
+    }
+
+    function restorePanelWidthVar(name, fallback, min, max) {
+      const stored = Number.parseFloat(window.localStorage.getItem(`lora-ui.${name.replace(/^--/, "")}`) || "");
+      if (Number.isFinite(stored)) setPanelWidthVar(name, stored, min, max);
+      else refs.workbenchShell.style.setProperty(name, `${fallback}px`);
+    }
+
+    function bindPanelResizer(handle, { cssVar, fallback, min, max, direction }) {
+      if (!handle) return;
+      handle.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        const startX = event.clientX;
+        const startWidth = numericCssVar(cssVar, fallback);
+        handle.classList.add("dragging");
+        handle.setPointerCapture?.(event.pointerId);
+        const onMove = (moveEvent) => {
+          const delta = (moveEvent.clientX - startX) * direction;
+          setPanelWidthVar(cssVar, startWidth + delta, min, max);
+        };
+        const onUp = () => {
+          handle.classList.remove("dragging");
+          document.removeEventListener("pointermove", onMove);
+          document.removeEventListener("pointerup", onUp);
+        };
+        document.addEventListener("pointermove", onMove);
+        document.addEventListener("pointerup", onUp, { once: true });
+      });
+    }
+
+    restorePanelWidthVar("--left-panel-width", 300, 240, 620);
+    restorePanelWidthVar("--right-panel-width", 320, 280, 680);
+    bindPanelResizer(refs.leftPanelResizer, { cssVar: "--left-panel-width", fallback: 300, min: 240, max: 620, direction: 1 });
+    bindPanelResizer(refs.rightPanelResizer, { cssVar: "--right-panel-width", fallback: 320, min: 280, max: 680, direction: -1 });
+
     refs.utilityActions.addEventListener("click", (event) => {
       const button = event.target.closest("button[data-panel]");
       if (!button) return;
@@ -292,9 +417,11 @@ export function createBootstrapModule({
     refs.loadWorkspaceBtn.addEventListener("click", () => runWithStatus("正在加载工作区...", () => loadWorkspace()).catch(showError));
     refs.rescanWorkspaceBtn.addEventListener("click", () => runWithStatus("正在重扫工作区...", () => rescanWorkspace()).catch(showError));
     refs.saveProjectBtn?.addEventListener("click", () => runWithStatus("正在保存项目...", () => saveCurrentProject()).catch(showError));
+    refs.saveProjectAsBtn?.addEventListener("click", () => runWithStatus("正在保存为新项目...", () => saveProjectAsNew()).catch(showError));
     refs.refreshProjectsBtn?.addEventListener("click", () => runWithStatus("正在刷新项目列表...", () => refreshProjects()).catch(showError));
     refs.cleanupTmpBtn?.addEventListener("click", () => runWithStatus("正在清理 tmp...", () => cleanupTmpNow()).catch(showError));
-    refs.openCaptionSettingsBtn?.addEventListener("click", () => setUtilityPanel("automation"));
+    refs.openCaptionSettingsBtn?.addEventListener("click", () => toggleCaptionSettingsPanel());
+    refs.closeCaptionSettingsBtn?.addEventListener("click", () => toggleCaptionSettingsPanel(false));
 
     refs.filterGroup.addEventListener("click", (event) => {
       const button = event.target.closest("button[data-filter]");
@@ -406,7 +533,7 @@ export function createBootstrapModule({
     refs.validateLocalBtn.addEventListener("click", () => runWithStatus("正在验证本地模型...", () => validateLocalModel()).catch(showError));
     refs.captionCurrentBtn.addEventListener("click", () => runWithStatus(`正在使用${activeCaptionBackendLabel()}标注当前图片...`, () => captionCurrentWithPayload(activeCaptionPayload())).catch(showError));
     refs.captionBatchBtn.addEventListener("click", () => runWithStatus(`正在使用${activeCaptionBackendLabel()}批量标注...`, () => startBatchCaptionWithPayload(activeCaptionPayload())).catch(showError));
-    refs.stopBatchBtn.addEventListener("click", () => runWithStatus("正在停止批量任务...", () => stopBatchCaption()).catch(showError));
+    refs.stopBatchBtn.addEventListener("click", () => runWithStatus("正在停止当前任务...", () => stopBatchCaption()).catch(showError));
 
     refs.loadApiModelsBtn.addEventListener("click", () => runWithStatus("正在读取 API 模型列表...", () => loadApiModels()).catch(showError));
     refs.validateApiBtn.addEventListener("click", () => runWithStatus("正在验证 API 模型...", () => validateApiModel()).catch(showError));
@@ -458,6 +585,7 @@ export function createBootstrapModule({
     try {
       const data = await apiGet("/api/workspace");
       applyWorkspaceSummary(data.workspace);
+      if (!restoreCurrentProjectFromLastWorkspace(data.workspace)) inferSingleProjectForCurrentWorkspace();
       if (state.workspace?.counts?.all) {
         await refreshItems();
       }
