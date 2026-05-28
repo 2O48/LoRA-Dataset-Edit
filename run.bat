@@ -42,7 +42,7 @@ if "%PYTHON_CMD%"=="" (
   exit /b 1
 )
 
-echo Starting LoRA Data Edit Web GUI on http://%HOST%:%PORT%
+echo Starting Vision Dataset Studio Web GUI on http://%HOST%:%PORT%
 echo Local access:  http://127.0.0.1:%PORT%
 echo LAN access:    use your machine IP with port %PORT%
 

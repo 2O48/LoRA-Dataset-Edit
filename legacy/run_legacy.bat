@@ -2,7 +2,7 @@
 cd /d %~dp0
 where conda >nul 2>nul
 if %errorlevel%==0 (
-  conda run -n caption-codex python lora_reviewer.py
+  conda run -n caption-codex python vision_dataset_reviewer.py
 ) else (
-  python lora_reviewer.py
+  python vision_dataset_reviewer.py
 )

@@ -48,21 +48,21 @@ QWEN_SYSTEM_PROMPT = (
 
 QWEN_PROMPTS = {
     "natural": (
-        "Write one clean English caption for this image for Stable Diffusion LoRA training. "
+        "Write one clean English caption for this image for vision model training. "
         "Focus on subject, material, texture, color, lighting, pose, camera angle, and scene. "
         "Keep it under 60 words."
     ),
     "detail": (
-        "Write a detailed English caption for this image for Stable Diffusion LoRA training. "
+        "Write a detailed English caption for this image for vision model training. "
         "Cover subject, clothing or material, texture, color palette, lighting, composition, "
         "camera angle, background, and mood."
     ),
     "tag": (
-        "Describe this image as comma-separated English tags for Stable Diffusion LoRA training. "
+        "Describe this image as comma-separated English tags for vision model training. "
         "Use concise tags only. No numbering. No full sentences."
     ),
     "short": (
-        "Write a very short English caption for this image for Stable Diffusion LoRA training. "
+        "Write a very short English caption for this image for vision model training. "
         "One sentence, under 24 words."
     ),
 }

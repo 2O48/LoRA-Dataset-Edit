@@ -1,10 +1,10 @@
-# LoRA 数据集标注工作台使用说明
+# Vision Dataset Studio 使用说明
 
 本文用于把项目打包成 ZIP 分享后，接收者解压并通过 Codex 或终端启动使用。
 
 ## 1. 项目用途
 
-这是一个 LoRA 训练数据集整理工具，主要用于：
+这是一个面向视觉训练数据的专业预处理工具，主要用于：
 
 - 浏览 `control1 / control2 / control3 / result` 多图数据集
 - 编辑自然语言 Caption
@@ -20,13 +20,13 @@
 推荐解压到一个没有中文空格问题的路径，例如：
 
 ```text
-/home/yourname/Codex/lora_data_edit
+/home/yourname/Codex/vision-dataset-studio
 ```
 
 或 WSL 下访问 Windows 磁盘：
 
 ```text
-/mnt/d/projects/lora_data_edit
+/mnt/d/projects/vision-dataset-studio
 ```
 
 项目关键文件：

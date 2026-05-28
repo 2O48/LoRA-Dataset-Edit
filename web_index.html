@@ -3,10 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LoRA Data Edit Console</title>
+  <title>Vision Dataset Studio</title>
   <script>
     (() => {
-      const mode = window.localStorage.getItem("lora-ui.theme-mode") || "auto";
+      const mode = window.localStorage.getItem("vds-ui.theme-mode") || window.localStorage.getItem("lora-ui.theme-mode") || "auto";
+      if (window.localStorage.getItem("vds-ui.theme-mode") === null && window.localStorage.getItem("lora-ui.theme-mode") !== null) {
+        window.localStorage.setItem("vds-ui.theme-mode", window.localStorage.getItem("lora-ui.theme-mode"));
+      }
       const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
       const resolved = mode === "dark" || (mode === "auto" && prefersDark) ? "dark" : "light";
       document.documentElement.dataset.themeMode = ["auto", "light", "dark"].includes(mode) ? mode : "auto";
@@ -235,7 +238,7 @@
               </label>
             </div>
             <div class="project-grid" id="projectGrid"></div>
-            <p class="card-note" id="projectStatus">项目保存后会出现在用户目录 .lora_dataset_edit/projects，可后续打开继续标注。</p>
+            <p class="card-note" id="projectStatus">项目保存后会出现在用户目录 .vision_dataset_studio/projects，可后续打开继续编辑。</p>
           </article>
         </section>
 
@@ -728,8 +731,8 @@
       <span class="bottom-status-item" title="API 标注服务的配置与请求状态" aria-label="API 标注服务的配置与请求状态"><span>API 状态</span> <strong id="apiAiStatusText">未配置</strong></span>
       <span class="bottom-status-item" title="Ollama 服务的配置与请求状态" aria-label="Ollama 服务的配置与请求状态"><span>Ollama 状态</span> <strong id="ollamaAiStatusText">未配置</strong></span>
       <span class="bottom-status-title">
-        <span class="bottom-status-title-en">LORA DATA EDIT CONSOLE</span>
-        <span class="bottom-status-title-zh">数据集标注工作台</span>
+        <span class="bottom-status-title-en">VISION DATASET STUDIO</span>
+        <span class="bottom-status-title-zh">视觉数据集工作台</span>
       </span>
     </footer>
   </div>

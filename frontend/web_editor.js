@@ -20,7 +20,7 @@ export function createEditorModule({
   syncCaptionDirty,
   onGlobalTagClick,
 }) {
-  const GLOBAL_TAG_DRAG_TYPE = "application/x-lora-global-tag";
+  const GLOBAL_TAG_DRAG_TYPE = "application/x-vds-global-tag";
   const GLOBAL_TAG_ROW_HEIGHT = 42;
   const GLOBAL_TAG_ROW_GAP = 8;
   const GLOBAL_TAG_IDLE_OVERSCAN = 1;
@@ -62,7 +62,7 @@ export function createEditorModule({
       if (state.promptTemplates.some((item) => item.id === previous)) {
         select.value = previous;
       }
-      select.dispatchEvent(new Event("lora-select-sync", { bubbles: true }));
+      select.dispatchEvent(new Event("vds-select-sync", { bubbles: true }));
     });
   }
 

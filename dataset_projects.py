@@ -10,10 +10,12 @@ from dataset_paths import is_relative_to
 from dataset_workspace import CONTROL_ROLES, IMAGE_EXTS
 
 
-APP_DATA_DIR = Path.home() / ".lora_dataset_edit"
+APP_DATA_DIR = Path.home() / ".vision_dataset_studio"
+LEGACY_APP_DATA_DIR = Path.home() / ".lora_dataset_edit"
 PROJECTS_DIR = APP_DATA_DIR / "projects"
 TRASH_DIR = APP_DATA_DIR / "trash"
 PROJECT_INDEX_FILE = APP_DATA_DIR / "projects_index.json"
+LEGACY_PROJECTS_DIR = LEGACY_APP_DATA_DIR / "projects"
 SCHEMA_VERSION = 2
 
 
@@ -205,13 +207,36 @@ def _sync_directory_contents(source: Path, target: Path) -> None:
 
 
 class ProjectStore:
-    def __init__(self, projects_dir: Path = PROJECTS_DIR):
+    def __init__(self, projects_dir: Path = PROJECTS_DIR, legacy_projects_dir: Path | None = None):
         self.projects_dir = projects_dir
         self.app_dir = self.projects_dir.parent
         self.trash_dir = self.app_dir / "trash"
         self.index_file = self.app_dir / "projects_index.json"
+        if legacy_projects_dir is not None:
+            self.legacy_projects_dir: Path | None = legacy_projects_dir
+            self.legacy_app_dir: Path | None = legacy_projects_dir.parent
+        elif self.projects_dir == PROJECTS_DIR:
+            self.legacy_projects_dir = LEGACY_PROJECTS_DIR
+            self.legacy_app_dir = LEGACY_APP_DATA_DIR
+        else:
+            self.legacy_projects_dir = None
+            self.legacy_app_dir = None
+
+    def _migrate_legacy_app_dir(self) -> None:
+        legacy_app_dir = self.legacy_app_dir
+        if not legacy_app_dir or legacy_app_dir == self.app_dir or not legacy_app_dir.exists():
+            return
+        if not self.app_dir.exists():
+            self.app_dir.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                legacy_app_dir.replace(self.app_dir)
+                return
+            except OSError:
+                pass
+        shutil.copytree(legacy_app_dir, self.app_dir, dirs_exist_ok=True)
 
     def ensure(self) -> None:
+        self._migrate_legacy_app_dir()
         self.app_dir.mkdir(parents=True, exist_ok=True)
         self.projects_dir.mkdir(parents=True, exist_ok=True)
         self.trash_dir.mkdir(parents=True, exist_ok=True)

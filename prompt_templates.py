@@ -19,8 +19,8 @@ DEFAULT_TEMPLATES = [
         "updated_at": "",
     },
     {
-        "id": "en-lora-short",
-        "name": "English·LoRA Short",
+        "id": "en-vision-short",
+        "name": "English·Vision Short",
         "content": "Write one short English caption for the difference from the control images to the result image. Focus only on visible changes.",
         "updated_at": "",
     },

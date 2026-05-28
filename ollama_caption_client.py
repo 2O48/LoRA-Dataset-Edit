@@ -118,7 +118,7 @@ class OllamaCaptionClient:
             headers={
                 "Content-Type": "application/json; charset=utf-8",
                 "Accept": "application/json",
-                "User-Agent": "LoRADataEdit/1.0",
+                "User-Agent": "VisionDatasetStudio/1.0",
             },
             method="POST",
         )
@@ -244,7 +244,7 @@ class OllamaCaptionClient:
         endpoint = _tags_endpoint(base_url)
         request = urllib.request.Request(
             endpoint,
-            headers={"Accept": "application/json", "User-Agent": "LoRADataEdit/1.0"},
+            headers={"Accept": "application/json", "User-Agent": "VisionDatasetStudio/1.0"},
             method="GET",
         )
         with urllib.request.urlopen(request, timeout=timeout) as response:

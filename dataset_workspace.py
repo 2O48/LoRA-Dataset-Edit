@@ -1160,9 +1160,9 @@ class DatasetWorkspace:
                 for index, (source, _) in enumerate(file_pairs):
                     if not source.exists():
                         raise FileNotFoundError(f"Source file does not exist: {source}")
-                    temp = source.with_name(f".lora_batch_rename_{uuid.uuid4().hex}_{index}{source.suffix}")
+                    temp = source.with_name(f".vds_batch_rename_{uuid.uuid4().hex}_{index}{source.suffix}")
                     while temp.exists():
-                        temp = source.with_name(f".lora_batch_rename_{uuid.uuid4().hex}_{index}{source.suffix}")
+                        temp = source.with_name(f".vds_batch_rename_{uuid.uuid4().hex}_{index}{source.suffix}")
                     source.rename(temp)
                     staged.append((source, temp))
 

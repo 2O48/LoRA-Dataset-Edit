@@ -167,7 +167,7 @@ def _tmp_cleanup_loop():
 
 
 class AppHandler(BaseHTTPRequestHandler):
-    server_version = "LoRADataEditHTTP/1.0"
+    server_version = "VisionDatasetStudioHTTP/1.0"
 
     def log_message(self, format, *args):
         return
@@ -867,7 +867,7 @@ def _get_bind_urls(host: str, port: int) -> list[str]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="LoRA Data Edit Web GUI")
+    parser = argparse.ArgumentParser(description="Vision Dataset Studio Web GUI")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8100)
     args = parser.parse_args()
@@ -878,7 +878,7 @@ def main():
 
     server = ThreadingHTTPServer((args.host, args.port), AppHandler)
     urls = _get_bind_urls(args.host, args.port)
-    print("LoRA Data Edit Web GUI is running.")
+    print("Vision Dataset Studio Web GUI is running.")
     for url in urls:
         print(f"  {url}")
     print("Press Ctrl+C to stop.")

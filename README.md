@@ -1,6 +1,8 @@
-# LoRA 数据集标注工作台
+# Vision Dataset Studio
 
-用于 Stable Diffusion / Flux / 通用 LoRA 训练数据集的多图浏览、自然语言 Caption 编辑、批量整理与 AI 差异标注工具。
+视觉数据集工作台，面向视觉训练数据的专业预处理平台。
+
+用于视觉训练数据集的多图浏览、自然语言 Caption 编辑、批量整理、图像预处理、质检与 AI 标注辅助。
 
 如果你是通过 ZIP 收到这个项目，建议先阅读 [USAGE.md](USAGE.md)，里面包含解压、创建环境、启动、AI 标注、图像处理、导出和打包分享注意事项。
 
@@ -172,7 +174,7 @@
   - `仅描述控制图1到结果图的变化，极简描述，中文描述。`
 - `中文·多图差异`
   - `结合所有控制图与结果图，仅描述控制图到结果图的主要变化，忽略未变化内容，极简描述，中文输出。`
-- `English·LoRA Short`
+- `English·Vision Short`
 
 模板应用在通用 Prompt 区，本地 Qwen、API、Ollama 会共用同一组生成参数。
 
@@ -434,13 +436,13 @@ models/Qwen3.5-0.8B
 项目文件默认保存在用户目录：
 
 ```text
-~/.lora_dataset_edit/projects/
+~/.vision_dataset_studio/projects/
 ```
 
 删除项目会移动到：
 
 ```text
-~/.lora_dataset_edit/trash/
+~/.vision_dataset_studio/trash/
 ```
 
 ---
@@ -485,8 +487,8 @@ run.sh
 run.bat
 legacy/                   归档的旧版 Tkinter GUI 与启动脚本
 models/                    项目内 Qwen 模型目录与内部缓存
-~/.lora_dataset_edit/projects/ 保存后的正式项目
-~/.lora_dataset_edit/trash/    删除项目的回收目录
+~/.vision_dataset_studio/projects/ 保存后的正式项目
+~/.vision_dataset_studio/trash/    删除项目的回收目录
 datasets/tmp/              中间过程文件，启动后每日自动清理过期内容
 datasets/exports/          导出结果
 datasets/workspaces/       工作区状态

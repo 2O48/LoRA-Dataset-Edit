@@ -101,7 +101,7 @@ export function createCaptionModule({
       .map((item) => `<option value="${item.key}">${item.label} · ${item.size_note}</option>`)
       .join("");
     refs.aiModel.value = nextValue;
-    refs.aiModel.dispatchEvent(new Event("lora-select-sync", { bubbles: true }));
+    refs.aiModel.dispatchEvent(new Event("vds-select-sync", { bubbles: true }));
     renderLocalModelMeta();
   }
 

@@ -1,54 +1,67 @@
 export const DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434";
 
+const STORAGE_NAMESPACE = "vds-ui";
+const LEGACY_STORAGE_NAMESPACE = "lora-ui";
+
+function storageKey(name) {
+  return `${STORAGE_NAMESPACE}.${name}`;
+}
+
+function legacyStorageKey(key) {
+  const currentPrefix = `${STORAGE_NAMESPACE}.`;
+  if (!`${key || ""}`.startsWith(currentPrefix)) return `${key || ""}`;
+  return `${LEGACY_STORAGE_NAMESPACE}.${key.slice(currentPrefix.length)}`;
+}
+
 export const STORAGE_KEYS = {
-  utilityPanel: "lora-ui.utility-panel",
-  viewMode: "lora-ui.view-mode",
-  listThumbMode: "lora-ui.list-thumb-mode",
-  controlCount: "lora-ui.control-count",
-  ignoreTokens: "lora-ui.ignore-tokens",
-  autoOpenLastWorkspace: "lora-ui.auto-open-last-workspace",
-  lastWorkspaceDirs: "lora-ui.last-workspace-dirs",
-  workspaceBrowserRoot: "lora-ui.workspace-browser-root",
-  workspaceBrowserTarget: "lora-ui.workspace-browser-target",
-  exportTargetPixels: "lora-ui.export-target-pixels",
-  exportSizeMultiple: "lora-ui.export-size-multiple",
-  exportProjectName: "lora-ui.export-project-name",
-  exportFormat: "lora-ui.export-format",
-  exportOutputDir: "lora-ui.export-output-dir",
-  exportProcessImages: "lora-ui.export-process-images",
-  exportIncludeControls: "lora-ui.export-include-controls",
-  exportPreserveSubfolders: "lora-ui.export-preserve-subfolders",
-  viewerTargetPixels: "lora-ui.viewer-target-pixels",
-  processProjectName: "lora-ui.process-project-name",
-  processIncludeControls: "lora-ui.process-include-controls",
-  processLoadWorkspace: "lora-ui.process-load-workspace",
-  processOnlyMismatched: "lora-ui.process-only-mismatched",
-  swapControlDir: "lora-ui.swap-control-dir",
-  swapResultDir: "lora-ui.swap-result-dir",
-  swapSuffix: "lora-ui.swap-suffix",
-  quickTags: "lora-ui.quick-tags",
-  quickTagsCollapsed: "lora-ui.quick-tags-collapsed",
-  projectSortMode: "lora-ui.project-sort-mode",
-  themeMode: "lora-ui.theme-mode",
-  captionBackend: "lora-ui.caption-backend",
-  localModel: "lora-ui.local-model",
-  localOverwriteMode: "lora-ui.local-overwrite-mode",
-  localCaptionMode: "lora-ui.local-caption-mode",
-  localMaxTokens: "lora-ui.local-max-tokens",
-  localPrompt: "lora-ui.local-prompt",
-  apiBaseUrl: "lora-ui.api-base-url",
-  apiKey: "lora-ui.api-key",
-  apiModelName: "lora-ui.api-model-name",
-  apiOverwriteMode: "lora-ui.api-overwrite-mode",
-  apiCaptionMode: "lora-ui.api-caption-mode",
-  apiMaxTokens: "lora-ui.api-max-tokens",
-  apiPrompt: "lora-ui.api-prompt",
-  ollamaBaseUrl: "lora-ui.ollama-base-url",
-  ollamaModelName: "lora-ui.ollama-model-name",
-  ollamaOverwriteMode: "lora-ui.ollama-overwrite-mode",
-  ollamaCaptionMode: "lora-ui.ollama-caption-mode",
-  ollamaMaxTokens: "lora-ui.ollama-max-tokens",
-  ollamaPrompt: "lora-ui.ollama-prompt",
+  utilityPanel: storageKey("utility-panel"),
+  viewMode: storageKey("view-mode"),
+  listThumbMode: storageKey("list-thumb-mode"),
+  controlCount: storageKey("control-count"),
+  ignoreTokens: storageKey("ignore-tokens"),
+  autoOpenLastWorkspace: storageKey("auto-open-last-workspace"),
+  lastWorkspaceDirs: storageKey("last-workspace-dirs"),
+  workspaceBrowserRoot: storageKey("workspace-browser-root"),
+  workspaceBrowserTarget: storageKey("workspace-browser-target"),
+  exportTargetPixels: storageKey("export-target-pixels"),
+  exportSizeMultiple: storageKey("export-size-multiple"),
+  exportProjectName: storageKey("export-project-name"),
+  exportFormat: storageKey("export-format"),
+  exportOutputDir: storageKey("export-output-dir"),
+  exportProcessImages: storageKey("export-process-images"),
+  exportIncludeControls: storageKey("export-include-controls"),
+  exportPreserveSubfolders: storageKey("export-preserve-subfolders"),
+  viewerTargetPixels: storageKey("viewer-target-pixels"),
+  processProjectName: storageKey("process-project-name"),
+  processIncludeControls: storageKey("process-include-controls"),
+  processLoadWorkspace: storageKey("process-load-workspace"),
+  processOnlyMismatched: storageKey("process-only-mismatched"),
+  swapControlDir: storageKey("swap-control-dir"),
+  swapResultDir: storageKey("swap-result-dir"),
+  swapSuffix: storageKey("swap-suffix"),
+  quickTags: storageKey("quick-tags"),
+  quickTagsCollapsed: storageKey("quick-tags-collapsed"),
+  projectSortMode: storageKey("project-sort-mode"),
+  themeMode: storageKey("theme-mode"),
+  captionBackend: storageKey("caption-backend"),
+  localModel: storageKey("local-model"),
+  localOverwriteMode: storageKey("local-overwrite-mode"),
+  localCaptionMode: storageKey("local-caption-mode"),
+  localMaxTokens: storageKey("local-max-tokens"),
+  localPrompt: storageKey("local-prompt"),
+  apiBaseUrl: storageKey("api-base-url"),
+  apiKey: storageKey("api-key"),
+  apiModelName: storageKey("api-model-name"),
+  apiOverwriteMode: storageKey("api-overwrite-mode"),
+  apiCaptionMode: storageKey("api-caption-mode"),
+  apiMaxTokens: storageKey("api-max-tokens"),
+  apiPrompt: storageKey("api-prompt"),
+  ollamaBaseUrl: storageKey("ollama-base-url"),
+  ollamaModelName: storageKey("ollama-model-name"),
+  ollamaOverwriteMode: storageKey("ollama-overwrite-mode"),
+  ollamaCaptionMode: storageKey("ollama-caption-mode"),
+  ollamaMaxTokens: storageKey("ollama-max-tokens"),
+  ollamaPrompt: storageKey("ollama-prompt"),
 };
 
 export const DEFAULT_QUICK_TAGS = [
@@ -90,7 +103,16 @@ export const UTILITY_PANEL_LABELS = {
 
 export function readStored(key, fallback = "") {
   const value = window.localStorage.getItem(key);
-  return value === null ? fallback : value;
+  if (value !== null) return value;
+  const legacyKey = legacyStorageKey(key);
+  if (legacyKey && legacyKey !== key) {
+    const legacyValue = window.localStorage.getItem(legacyKey);
+    if (legacyValue !== null) {
+      window.localStorage.setItem(key, legacyValue);
+      return legacyValue;
+    }
+  }
+  return fallback;
 }
 
 export function saveStored(key, value) {

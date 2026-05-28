@@ -225,7 +225,7 @@ export function createBootstrapModule({
         }
       });
       select.addEventListener("change", sync);
-      select.addEventListener("lora-select-sync", sync);
+      select.addEventListener("vds-select-sync", sync);
       new MutationObserver(sync).observe(select, { childList: true, subtree: true, attributes: true });
       sync();
     });
@@ -455,6 +455,10 @@ export function createBootstrapModule({
     }
 
     function cssVarStorageKey(name) {
+      return `vds-ui.${name.replace(/^--/, "")}`;
+    }
+
+    function legacyCssVarStorageKey(name) {
       return `lora-ui.${name.replace(/^--/, "")}`;
     }
 
@@ -465,7 +469,9 @@ export function createBootstrapModule({
     }
 
     function restorePanelWidthVar(name, fallback, min, max) {
-      const stored = Number.parseFloat(window.localStorage.getItem(cssVarStorageKey(name)) || "");
+      const stored = Number.parseFloat(
+        window.localStorage.getItem(cssVarStorageKey(name)) || window.localStorage.getItem(legacyCssVarStorageKey(name)) || ""
+      );
       if (Number.isFinite(stored)) setPanelWidthVar(name, stored, min, max);
       else refs.workbenchShell.style.setProperty(name, `${fallback}px`);
     }
@@ -501,7 +507,9 @@ export function createBootstrapModule({
     }
 
     function restoreContentSizeVar(name, fallback, min, max) {
-      const stored = Number.parseFloat(window.localStorage.getItem(cssVarStorageKey(name)) || "");
+      const stored = Number.parseFloat(
+        window.localStorage.getItem(cssVarStorageKey(name)) || window.localStorage.getItem(legacyCssVarStorageKey(name)) || ""
+      );
       if (Number.isFinite(stored)) setContentSizeVar(name, stored, min, max);
       else refs.workbenchShell.style.setProperty(name, `${fallback}px`);
     }

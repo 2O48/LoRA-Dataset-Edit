@@ -18,7 +18,7 @@ export function createBrowserModule({
   closeUtilityPanel,
   setAiStatusLine,
 }) {
-  const ITEM_DRAG_TYPE = "application/x-lora-item-name";
+  const ITEM_DRAG_TYPE = "application/x-vds-item-name";
   const itemContextMenu = document.querySelector("#itemContextMenu");
   let itemContextTarget = null;
   let itemContextCloseTimer = 0;

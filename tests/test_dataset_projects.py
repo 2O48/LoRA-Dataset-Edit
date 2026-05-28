@@ -192,6 +192,27 @@ class ProjectStoreTests(unittest.TestCase):
                 '{\n  "local_overwrite_mode": "skip",\n  "local_caption_mode": "tag",\n  "local_max_tokens": "1024",\n  "local_prompt": "只输出短标签"\n}',
             )
 
+    def test_legacy_project_store_directory_is_migrated_to_new_brand_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            legacy_projects_dir = root / ".lora_dataset_edit" / "projects"
+            new_projects_dir = root / ".vision_dataset_studio" / "projects"
+
+            legacy_store = ProjectStore(legacy_projects_dir)
+            workspace = self._make_workspace(root)
+            saved = legacy_store.save_project(name="迁移项目", workspace=workspace)
+            project_id = saved["project"]["id"]
+
+            migrated_store = ProjectStore(new_projects_dir, legacy_projects_dir=legacy_projects_dir)
+            projects = migrated_store.list_projects()
+
+            self.assertEqual(len(projects), 1)
+            self.assertEqual(projects[0]["id"], project_id)
+            self.assertTrue((new_projects_dir / project_id).is_dir())
+            self.assertFalse((legacy_projects_dir / project_id).exists())
+            reopened = migrated_store.get_project(project_id)
+            self.assertEqual(reopened["project"]["name"], "迁移项目")
+
 
 if __name__ == "__main__":
     unittest.main()

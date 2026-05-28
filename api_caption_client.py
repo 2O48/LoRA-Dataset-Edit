@@ -17,21 +17,21 @@ from caption_image_preprocess import prepare_caption_images
 
 DEFAULT_PROMPTS = {
     "natural": (
-        "Write one clean English caption for this image for Stable Diffusion LoRA training. "
+        "Write one clean English caption for this image for vision model training. "
         "Focus on subject, material, texture, color, lighting, pose, camera angle, and scene. "
         "Keep it under 60 words."
     ),
     "detail": (
-        "Write a detailed English caption for this image for Stable Diffusion LoRA training. "
+        "Write a detailed English caption for this image for vision model training. "
         "Cover subject, clothing or material, texture, color palette, lighting, composition, "
         "camera angle, background, and mood."
     ),
     "tag": (
-        "Describe this image as comma-separated English tags for Stable Diffusion LoRA training. "
+        "Describe this image as comma-separated English tags for vision model training. "
         "Use concise tags only. No numbering. No full sentences."
     ),
     "short": (
-        "Write a very short English caption for this image for Stable Diffusion LoRA training. "
+        "Write a very short English caption for this image for vision model training. "
         "One sentence, under 24 words."
     ),
 }
@@ -234,7 +234,7 @@ class APICaptionClient:
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You generate precise image captions for LoRA dataset annotation.",
+                        "content": "You generate precise image captions for vision training datasets.",
                     },
                     {
                         "role": "user",
@@ -247,7 +247,7 @@ class APICaptionClient:
             headers = {
                 "Content-Type": "application/json; charset=utf-8",
                 "Accept": "application/json",
-                "User-Agent": "LoRADataEdit/1.0",
+                "User-Agent": "VisionDatasetStudio/1.0",
             }
             if (api_key or "").strip():
                 headers["Authorization"] = f"Bearer {api_key.strip()}"
@@ -317,7 +317,7 @@ class APICaptionClient:
         endpoint = _normalize_models_endpoint(api_base_url)
         headers = {
             "Accept": "application/json",
-            "User-Agent": "LoRADataEdit/1.0",
+            "User-Agent": "VisionDatasetStudio/1.0",
         }
         if (api_key or "").strip():
             headers["Authorization"] = f"Bearer {api_key.strip()}"

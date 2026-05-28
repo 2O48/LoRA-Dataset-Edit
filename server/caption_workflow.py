@@ -28,7 +28,7 @@ def build_modify_prompt(existing_text: str, instruction: str) -> str:
     clean_existing = (existing_text or "").strip()
     clean_instruction = (instruction or "").strip() or "Revise the existing caption so it matches the images more accurately."
     return (
-        "You are editing an existing LoRA dataset caption.\n"
+        "You are editing an existing vision training dataset caption.\n"
         "Update the caption according to the edit instruction and the images.\n"
         "Return only the revised final caption.\n\n"
         f"Existing caption:\n{clean_existing}\n\n"

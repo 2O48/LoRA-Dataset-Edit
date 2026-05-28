@@ -1,16 +1,16 @@
 项目阶段总结
 生成时间：2026-05-13
-工作目录：/home/lijiawei/Codex/lora_data_edit
+工作目录：/home/lijiawei/Codex/vision-dataset-studio
 
 一、项目当前定位
 
 这个版本不是原始远程仓库直接状态，而是基于本地备份
-/home/lijiawei/Codex/archive/lora_data_edit
+/home/lijiawei/Codex/archive/vision-dataset-studio
 恢复后，继续把后续需求逐步补回来的版本。
 
 整理状态：
 - 当前目录内的 `.git` 是只读空目录，Git 不能正常初始化或读取。
-- 已创建临时回滚备份：`/tmp/lora_data_edit_baseline_20260515.tgz`。
+- 已创建临时回滚备份：`/tmp/vision-dataset-studio_baseline_20260515.tgz`。
 - 已补齐 `.gitignore`，避免提交 `.venv`、models、本地 datasets 运行数据和缓存。
 - 已清理 Python 编译缓存。
 - 旧版 Tkinter 入口已归档到 `legacy/`。
@@ -55,7 +55,7 @@
 - bootstrap_env.py
 
 归档代码：
-- legacy/lora_reviewer.py
+- legacy/vision_dataset_reviewer.py
 - legacy/run_legacy.sh
 - legacy/run_legacy.bat
 

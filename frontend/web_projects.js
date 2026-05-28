@@ -38,7 +38,7 @@ export function createProjectsModule({
       if (!targetId || !select || !value) return;
       if (Array.from(select.options).some((option) => option.value === value)) {
         select.value = value;
-        select.dispatchEvent(new Event("lora-select-sync", { bubbles: true }));
+        select.dispatchEvent(new Event("vds-select-sync", { bubbles: true }));
       }
     });
   }
@@ -46,7 +46,7 @@ export function createProjectsModule({
   function setValue(ref, value, storageKey = "") {
     if (!ref || value === undefined || value === null) return;
     ref.value = `${value}`;
-    ref.dispatchEvent?.(new Event("lora-select-sync", { bubbles: true }));
+    ref.dispatchEvent?.(new Event("vds-select-sync", { bubbles: true }));
     if (storageKey) saveStored(storageKey, ref.value);
   }
 
@@ -380,7 +380,7 @@ export function createProjectsModule({
   }
 
   async function deleteProject(project) {
-    if (!(await window.appConfirm(`删除项目「${project.name || project.id}」？项目会移动到用户目录 .lora_dataset_edit/trash。`))) return;
+    if (!(await window.appConfirm(`删除项目「${project.name || project.id}」？项目会移动到用户目录 .vision_dataset_studio/trash。`))) return;
     await runWithStatus("正在删除项目...", async () => {
       await apiPost("/api/projects/delete", { id: project.id });
       if (state.currentProjectId === project.id) {
