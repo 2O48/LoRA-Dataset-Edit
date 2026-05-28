@@ -93,7 +93,7 @@ def _normalize_segment_inputs(values: list[str]) -> list[str]:
     return items
 
 
-def _merge_text_with_segments(existing: str, segments: list[str]) -> str:
+def _merge_text_with_segments(existing: str, segments: list[str], position: str = "after") -> str:
     clean_segments = _normalize_segment_inputs(segments)
     if not clean_segments:
         return existing
@@ -105,6 +105,8 @@ def _merge_text_with_segments(existing: str, segments: list[str]) -> str:
     additions = [segment for segment in clean_segments if segment.lower() not in current_index]
     if not additions:
         return current_text
+    if position == "before":
+        return ", ".join(additions) + f"; {current_text.lstrip(',，;； ')}"
     return f"{current_text.rstrip(',，;； ')}; " + ", ".join(additions)
 
 
@@ -1000,21 +1002,22 @@ class DatasetWorkspace:
             self._mark_global_segments_dirty()
             return self._serialize_item(name)
 
-    def batch_add_segments(self, names: list[str], segments: list[str]) -> dict:
+    def batch_add_segments(self, names: list[str], segments: list[str], position: str = "after") -> dict:
         additions = _normalize_segment_inputs(segments)
         if not additions:
             return {"changed": 0}
+        insert_position = "before" if position == "before" else "after"
         changed = 0
         for name in names:
             original = self.txt_content.get(name, "")
-            updated = _merge_text_with_segments(original, additions)
+            updated = _merge_text_with_segments(original, additions, insert_position)
             if updated != original:
                 self.save_text(name, updated)
                 changed += 1
         return {"changed": changed}
 
-    def batch_add_tags(self, names: list[str], tags: list[str]) -> dict:
-        return self.batch_add_segments(names, tags)
+    def batch_add_tags(self, names: list[str], tags: list[str], position: str = "after") -> dict:
+        return self.batch_add_segments(names, tags, position)
 
     def batch_delete_segments(self, names: list[str], segments: list[str]) -> dict:
         needles = [segment.lower() for segment in _normalize_segment_inputs(segments)]

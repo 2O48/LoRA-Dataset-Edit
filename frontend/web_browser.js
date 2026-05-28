@@ -21,6 +21,8 @@ export function createBrowserModule({
   const ITEM_DRAG_TYPE = "application/x-lora-item-name";
   const itemContextMenu = document.querySelector("#itemContextMenu");
   let itemContextTarget = null;
+  let itemContextCloseTimer = 0;
+  let itemThumbObserver = null;
 
   function currentIssueCount() {
     return state.items.reduce((total, item) => {
@@ -58,6 +60,65 @@ export function createBrowserModule({
     return url.toString();
   }
 
+  function disconnectItemThumbObserver() {
+    itemThumbObserver?.disconnect();
+    itemThumbObserver = null;
+  }
+
+  function ensureItemThumbObserver() {
+    if (itemThumbObserver || typeof IntersectionObserver === "undefined") return itemThumbObserver;
+    itemThumbObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            loadItemThumb(entry.target);
+          } else {
+            unloadItemThumb(entry.target);
+          }
+        }
+      },
+      { root: refs.itemList, rootMargin: "0px", threshold: 0.01 },
+    );
+    return itemThumbObserver;
+  }
+
+  function loadItemThumb(slot) {
+    if (!slot || slot.dataset.loaded === "1") return;
+    const src = slot.dataset.src;
+    if (!src) return;
+    slot.dataset.loaded = "1";
+    const img = document.createElement("img");
+    img.className = "item-thumb";
+    img.src = src;
+    img.alt = "";
+    img.title = slot.title || "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    slot.replaceChildren(img);
+    slot.classList.add("loaded");
+  }
+
+  function unloadItemThumb(slot) {
+    if (!slot || slot.dataset.loaded !== "1") return;
+    slot.dataset.loaded = "0";
+    slot.replaceChildren();
+    slot.classList.remove("loaded");
+  }
+
+  function createItemThumbSlot(item, role) {
+    const slot = document.createElement("div");
+    slot.className = "item-thumb-lazy";
+    slot.dataset.src = imageUrl(role, item.name, true, 192, 156);
+    slot.title = ROLE_LABELS[role] || role;
+    const observer = ensureItemThumbObserver();
+    if (observer) {
+      observer.observe(slot);
+    } else {
+      loadItemThumb(slot);
+    }
+    return slot;
+  }
+
   function activeControlCount() {
     const rawCount = refs.controlCount?.value ?? state.workspace?.settings?.control_count ?? 1;
     const count = Number(rawCount);
@@ -91,9 +152,18 @@ export function createBrowserModule({
   }
 
   function renderFilterSummary() {
-    const label = FILTER_LABELS[state.filter] || "筛选";
-    const query = state.segmentQuery ? ` · 关键词: ${state.segmentQuery}` : "";
-    refs.filterSummary.textContent = `${label}${query}`;
+    if (!refs.listThumbModeSelect) return;
+    const showCombined = activeControlCount() > 0 && controlImageCount() > 0;
+    if (!showCombined && state.listThumbMode === "combined") {
+      state.listThumbMode = "result";
+      saveStored(STORAGE_KEYS.listThumbMode, state.listThumbMode);
+    }
+    const currentValue = state.listThumbMode === "combined" && showCombined ? "combined" : "result";
+    refs.listThumbModeSelect.replaceChildren(
+      new Option("仅结果图", "result"),
+      ...(showCombined ? [new Option("控制图与结果图", "combined")] : []),
+    );
+    refs.listThumbModeSelect.value = currentValue;
   }
 
   function renderFilters() {
@@ -251,12 +321,28 @@ export function createBrowserModule({
 
   function closeItemContextMenu() {
     if (!itemContextMenu) return;
-    itemContextMenu.hidden = true;
-    itemContextTarget = null;
+    if (itemContextMenu.hidden) {
+      itemContextTarget = null;
+      return;
+    }
+    itemContextMenu.classList.remove("menu-open");
+    itemContextMenu.classList.add("menu-closing");
+    if (itemContextCloseTimer) window.clearTimeout(itemContextCloseTimer);
+    itemContextCloseTimer = window.setTimeout(() => {
+      itemContextCloseTimer = 0;
+      itemContextMenu.hidden = true;
+      itemContextMenu.classList.remove("menu-closing");
+      itemContextTarget = null;
+    }, 180);
   }
 
   function positionItemContextMenu(event) {
     if (!itemContextMenu) return;
+    if (itemContextCloseTimer) {
+      window.clearTimeout(itemContextCloseTimer);
+      itemContextCloseTimer = 0;
+    }
+    itemContextMenu.classList.remove("menu-open", "menu-closing");
     itemContextMenu.hidden = false;
     const rect = itemContextMenu.getBoundingClientRect();
     const padding = 8;
@@ -264,6 +350,9 @@ export function createBrowserModule({
     const top = Math.min(Math.max(padding, event.clientY), window.innerHeight - rect.height - padding);
     itemContextMenu.style.left = `${Math.round(left)}px`;
     itemContextMenu.style.top = `${Math.round(top)}px`;
+    window.requestAnimationFrame(() => {
+      itemContextMenu.classList.add("menu-open");
+    });
   }
 
   function openItemContextMenu(event, item, title) {
@@ -470,24 +559,18 @@ export function createBrowserModule({
     renderFolderFilters();
     const items = filteredItems();
     state.visibleItems = items;
+    disconnectItemThumbObserver();
     refs.itemList.textContent = "";
     refs.listStats.textContent = state.itemFolderFilter ? `${items.length}/${state.items.length} 项` : `${items.length} 项`;
     renderWorkspaceSummary();
     if (refs.metricFiltered) refs.metricFiltered.textContent = `${items.length || 0}`;
 
     for (const item of items) {
-      const thumbRole =
-        item.exists.result
-          ? "result"
-          : item.exists.control1
-            ? "control1"
-            : item.exists.control2
-              ? "control2"
-              : item.exists.control3
-                ? "control3"
-                : "";
+      const thumbRoles = state.listThumbMode === "combined" && activeControlCount() > 0
+        ? [...activeControlRoles(), "result"]
+        : ["result"];
       const card = document.createElement("article");
-      card.className = `item-card${item.name === state.selectedName ? " active" : ""}`;
+      card.className = `item-card${item.name === state.selectedName ? " active" : ""}${thumbRoles.length > 1 ? " multi-thumb" : ""}`;
       card.dataset.name = item.name;
       card.draggable = true;
       card.title = "双击重命名图片";
@@ -505,18 +588,20 @@ export function createBrowserModule({
         card.classList.remove("dragging");
         refs.itemFolderFilters?.querySelectorAll(".drag-over").forEach((node) => node.classList.remove("drag-over"));
       });
-      if (thumbRole) {
-        const img = document.createElement("img");
-        img.className = "item-thumb";
-        img.src = imageUrl(thumbRole, item.name, true, 192, 156);
-        img.alt = "";
-        card.appendChild(img);
-      } else {
-        const placeholder = document.createElement("div");
-        placeholder.className = "item-thumb-empty";
-        placeholder.textContent = "无预览";
-        card.appendChild(placeholder);
+      const thumbs = document.createElement("div");
+      thumbs.className = thumbRoles.length > 1 ? "item-thumb-grid" : "item-thumb-single";
+      thumbs.style.setProperty("--thumb-count", String(thumbRoles.length));
+      for (const role of thumbRoles) {
+        if (item.exists[role]) {
+          thumbs.appendChild(createItemThumbSlot(item, role));
+        } else {
+          const placeholder = document.createElement("div");
+          placeholder.className = "item-thumb-empty";
+          placeholder.textContent = thumbRoles.length > 1 ? (ROLE_LABELS[role] || role).replace(/\s+/g, "") : "无结果";
+          thumbs.appendChild(placeholder);
+        }
       }
+      card.appendChild(thumbs);
 
       const right = document.createElement("div");
       right.className = "item-card-main";
@@ -576,19 +661,55 @@ export function createBrowserModule({
     }
   }
 
+  function viewerResolutionSummary(item) {
+    if (!item) return "";
+    const resultRes = item.resolution.result;
+    if (!Array.isArray(resultRes)) return "结果图分辨率: 未读取";
+
+    const comparisons = activeControlRoles()
+      .map((role) => ({ role, size: item.resolution[role] }))
+      .filter((row) => Array.isArray(row.size));
+
+    if (!comparisons.length) return `结果图分辨率: ${resultRes[0]}×${resultRes[1]}`;
+
+    const mismatches = comparisons.filter(
+      (row) => row.size[0] !== resultRes[0] || row.size[1] !== resultRes[1],
+    );
+    if (!mismatches.length) return `控制图与结果图分辨率一致: ${resultRes[0]}×${resultRes[1]}`;
+    return mismatches
+      .map((row) => `${ROLE_LABELS[row.role]} ${row.size[0]}×${row.size[1]} 与结果图 ${resultRes[0]}×${resultRes[1]} 不一致`)
+      .join(" · ");
+  }
+
+  function renderCurrentMeta(item) {
+    refs.currentMeta.textContent = "";
+    if (!item) {
+      refs.currentMeta.textContent = "选择左侧条目开始浏览。";
+      return;
+    }
+
+    const statusLine = document.createElement("span");
+    statusLine.className = "current-meta-line";
+    statusLine.textContent = [
+      `TXT: ${item.exists.txt ? "已存在" : "未创建"}`,
+      ...activeControlRoles().map((role) => `${ROLE_LABELS[role]}: ${item.exists[role] ? "有" : "无"}`),
+      `结果图: ${item.exists.result ? "有" : "无"}`,
+    ].join("，");
+
+    const resolutionLine = document.createElement("span");
+    resolutionLine.className = "current-meta-line";
+    resolutionLine.textContent = viewerResolutionSummary(item);
+
+    refs.currentMeta.append(statusLine, resolutionLine);
+  }
+
   function renderViewer() {
     const item = state.currentItem;
     ensureViewerResizeObserver();
     refs.viewerGrid.dataset.mode = state.viewMode;
     refs.viewerGrid.dataset.imageMode = state.viewerImageMode || "fit";
     refs.currentName.textContent = item ? item.name : "未选择图片";
-    refs.currentMeta.textContent = item
-      ? [
-          `TXT: ${item.exists.txt ? "已存在" : "未创建"}`,
-          ...activeControlRoles().map((role) => `${ROLE_LABELS[role]}: ${item.exists[role] ? "有" : "无"}`),
-          `结果图: ${item.exists.result ? "有" : "无"}`,
-        ].join(" · ")
-      : "选择左侧条目开始浏览。";
+    renderCurrentMeta(item);
 
     const controlCount = activeControlCount();
     refs.viewModeGroup.querySelectorAll("button").forEach((button) => {
@@ -640,29 +761,8 @@ export function createBrowserModule({
     if (refs.viewerMatchResultBtn) refs.viewerMatchResultBtn.disabled = !canProcess || !item.exists.result;
 
     if (!item) {
-      refs.resolutionNote.textContent = "等待载入分辨率信息";
       renderSelectionSummary();
       return;
-    }
-
-    const resultRes = item.resolution.result;
-    const comparisons = activeControlRoles()
-      .map((role) => ({ role, size: item.resolution[role] }))
-      .filter((row) => Array.isArray(row.size) && Array.isArray(resultRes));
-
-    if (!Array.isArray(resultRes)) {
-      refs.resolutionNote.textContent = "当前条目缺少结果图分辨率信息";
-    } else if (!comparisons.length) {
-      refs.resolutionNote.textContent = `结果图分辨率：${resultRes[0]}×${resultRes[1]} · 当前无可比对控制图`;
-    } else {
-      const mismatches = comparisons.filter(
-        (row) => row.size[0] !== resultRes[0] || row.size[1] !== resultRes[1],
-      );
-      refs.resolutionNote.textContent = mismatches.length
-        ? mismatches
-            .map((row) => `${ROLE_LABELS[row.role]} ${row.size[0]}×${row.size[1]} 与结果图 ${resultRes[0]}×${resultRes[1]} 不一致`)
-            .join(" · ")
-        : `控制图与结果图分辨率一致：${resultRes[0]}×${resultRes[1]}`;
     }
 
     renderSelectionSummary();

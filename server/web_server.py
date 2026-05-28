@@ -451,7 +451,11 @@ class AppHandler(BaseHTTPRequestHandler):
                 return self._send_json({"ok": True, **result})
 
             if path in {"/api/batch/add", "/api/batch/add-segments"}:
-                result = WORKSPACE.batch_add_segments(body.get("names", []), body.get("segments", body.get("tags", [])))
+                result = WORKSPACE.batch_add_segments(
+                    body.get("names", []),
+                    body.get("segments", body.get("tags", [])),
+                    position=str(body.get("position", "after") or "after"),
+                )
                 return self._send_json({"ok": True, **result})
 
             if path in {"/api/batch/delete", "/api/batch/delete-segments"}:

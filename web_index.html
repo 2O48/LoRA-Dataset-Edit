@@ -75,28 +75,19 @@
             <button class="theme-mode-button" data-theme-mode="auto" type="button" aria-label="自动配色" title="自动">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" aria-hidden="true">
                 <rect width="256" height="256" fill="none"></rect>
-                <rect x="32" y="48" width="192" height="144" rx="16" transform="translate(256 240) rotate(180)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></rect>
-                <line x1="160" y1="224" x2="96" y2="224" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></line>
+                <path d="M216,48H40A16,16,0,0,0,24,64V184a16,16,0,0,0,16,16h72v16H88a8,8,0,0,0,0,16h80a8,8,0,0,0,0-16H144V200h72a16,16,0,0,0,16-16V64A16,16,0,0,0,216,48Zm0,136H40V64H216Z"></path>
               </svg>
             </button>
             <button class="theme-mode-button" data-theme-mode="light" type="button" aria-label="浅色模式" title="浅色">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" aria-hidden="true">
                 <rect width="256" height="256" fill="none"></rect>
-                <line x1="128" y1="40" x2="128" y2="16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></line>
-                <circle cx="128" cy="128" r="56" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></circle>
-                <line x1="64" y1="64" x2="48" y2="48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></line>
-                <line x1="64" y1="192" x2="48" y2="208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></line>
-                <line x1="192" y1="64" x2="208" y2="48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></line>
-                <line x1="192" y1="192" x2="208" y2="208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></line>
-                <line x1="40" y1="128" x2="16" y2="128" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></line>
-                <line x1="128" y1="216" x2="128" y2="240" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></line>
-                <line x1="216" y1="128" x2="240" y2="128" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></line>
+                <path d="M120,16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0ZM46.34,57.66A8,8,0,0,1,57.66,46.34l16,16A8,8,0,0,1,62.34,73.66Zm0,140.68,16-16a8,8,0,0,1,11.32,11.32l-16,16a8,8,0,0,1-11.32-11.32ZM16,120H40a8,8,0,0,1,0,16H16a8,8,0,0,1,0-16Zm104,96a8,8,0,0,1,16,0v24a8,8,0,0,1-16,0Zm62.34-22.34a8,8,0,0,1,11.32-11.32l16,16a8,8,0,0,1-11.32,11.32Zm0-120a8,8,0,0,1,0-11.32l16-16a8,8,0,0,1,11.32,11.32l-16,16A8,8,0,0,1,182.34,73.66ZM216,120h24a8,8,0,0,1,0,16H216a8,8,0,0,1,0-16ZM128,64a64,64,0,1,1-64,64A64.07,64.07,0,0,1,128,64Z"></path>
               </svg>
             </button>
             <button class="theme-mode-button" data-theme-mode="dark" type="button" aria-label="深色模式" title="深色">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" aria-hidden="true">
                 <rect width="256" height="256" fill="none"></rect>
-                <path d="M108.11,28.11A96.09,96.09,0,0,0,227.89,147.89,96,96,0,1,1,108.11,28.11Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></path>
+                <path d="M235.54,150.21a8,8,0,0,0-8.42-1.43A88.08,88.08,0,0,1,107.22,28.88a8,8,0,0,0-9.85-9.85,104.84,104.84,0,0,0-52.91,37.31A104,104,0,0,0,199.66,211.54,104.84,104.84,0,0,0,237,158.63,8,8,0,0,0,235.54,150.21Z"></path>
               </svg>
             </button>
           </div>
@@ -259,7 +250,8 @@
             </div>
             <div class="batch-grid">
               <input class="span-2" id="batchAddInput" placeholder="添加短语，逗号分隔">
-              <button class="button-primary span-2" id="batchAddBtn" type="button">批量添加</button>
+              <button class="button-primary" id="batchAddBeforeBtn" type="button">添加至最前</button>
+              <button class="button-primary" id="batchAddAfterBtn" type="button">添加至最后</button>
               <input class="span-2" id="batchDeleteInput" placeholder="删除短语 / 片段，逗号分隔">
               <button class="button-primary danger-text span-2" id="batchDeleteBtn" type="button">批量删除</button>
               <input id="batchReplaceOld" placeholder="旧短语">
@@ -422,7 +414,10 @@
             <p class="card-kicker">Browse</p>
             <h2>筛选与列表</h2>
           </div>
-          <p class="card-note" id="filterSummary">全部条目</p>
+          <select class="list-thumb-mode-select" id="listThumbModeSelect" aria-label="缩略图显示模式">
+            <option value="result">仅结果图</option>
+            <option value="combined">控制图与结果图</option>
+          </select>
         </div>
 
         <div class="filter-stack">
@@ -435,15 +430,15 @@
             <button data-filter="no_txt" type="button">缺 TXT</button>
             <button data-filter="res_mismatch" type="button">分辨率异</button>
           </div>
-          <label class="stacked-label">
-            <span>短语 / 名称搜索</span>
+          <label class="stacked-label list-search-field">
+            <span class="list-search-head">
+              <span>短语 / 名称搜索</span>
+              <span id="listStats">0 项</span>
+            </span>
             <input id="tagSearch" placeholder="输入 tag / caption / 子文件夹 / 图片名称">
           </label>
         </div>
 
-        <div class="list-meta">
-          <span id="listStats">0 项</span>
-        </div>
         <div class="item-list" id="itemList"></div>
         <div class="folder-filter-bar" id="itemFolderFilters"></div>
       </aside>
@@ -504,9 +499,6 @@
               <div class="image-stage" id="stage-result"></div>
             </article>
           </div>
-
-          <div class="note-bar" id="resolutionNote">等待载入分辨率信息</div>
-          <div class="note-bar subtle" id="viewerProcessStatus">Viewer 图像处理会生成临时副本并更新当前预览；保存项目时写入 ~/.lora_dataset_edit/projects，不改动原始文件。</div>
         </article>
 
         <div class="content-resizer horizontal-resizer" id="viewerEditorResizer" role="separator" aria-orientation="horizontal" aria-label="调整 Viewer 高度"></div>
@@ -735,7 +727,10 @@
       <span class="bottom-status-item" title="本地模型服务的运行状态" aria-label="本地模型服务的运行状态"><span>本地模型状态</span> <strong id="localAiStatusText">未配置</strong></span>
       <span class="bottom-status-item" title="API 标注服务的配置与请求状态" aria-label="API 标注服务的配置与请求状态"><span>API 状态</span> <strong id="apiAiStatusText">未配置</strong></span>
       <span class="bottom-status-item" title="Ollama 服务的配置与请求状态" aria-label="Ollama 服务的配置与请求状态"><span>Ollama 状态</span> <strong id="ollamaAiStatusText">未配置</strong></span>
-      <span class="bottom-status-title">数据集标注工作台</span>
+      <span class="bottom-status-title">
+        <span class="bottom-status-title-en">LORA DATA EDIT CONSOLE</span>
+        <span class="bottom-status-title-zh">数据集标注工作台</span>
+      </span>
     </footer>
   </div>
 

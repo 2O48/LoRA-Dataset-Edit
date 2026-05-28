@@ -112,15 +112,37 @@ export function createBootstrapModule({
       menu.style.top = opensUp
         ? `${Math.round(Math.max(viewportPadding, rect.top - menuGap - menuHeight))}px`
         : `${Math.round(rect.bottom + menuGap)}px`;
+      menu.classList.toggle("drop-up", opensUp);
+    };
+
+    const openMenu = (shell, button, menu) => {
+      window.clearTimeout(menu.closeTimer);
+      menu.classList.remove("menu-open", "menu-closing");
+      menu.hidden = false;
+      positionMenu(shell, button, menu);
+      window.requestAnimationFrame(() => {
+        menu.classList.add("menu-open");
+      });
+    };
+
+    const closeMenu = (shell) => {
+      const menu = shell.customSelectMenu;
+      if (!menu || menu.hidden) return;
+      window.clearTimeout(menu.closeTimer);
+      shell.classList.remove("open");
+      shell.querySelector(".custom-select-button")?.setAttribute("aria-expanded", "false");
+      menu.classList.remove("menu-open");
+      menu.classList.add("menu-closing");
+      menu.closeTimer = window.setTimeout(() => {
+        menu.hidden = true;
+        menu.classList.remove("menu-closing", "drop-up");
+      }, 230);
     };
 
     const closeMenus = (except = null) => {
       document.querySelectorAll(".custom-select.open").forEach((node) => {
         if (node === except) return;
-        node.classList.remove("open");
-        node.querySelector(".custom-select-button")?.setAttribute("aria-expanded", "false");
-        const menu = node.customSelectMenu;
-        if (menu) menu.hidden = true;
+        closeMenu(node);
       });
     };
 
@@ -196,8 +218,11 @@ export function createBootstrapModule({
         sync();
         shell.classList.toggle("open", willOpen);
         button.setAttribute("aria-expanded", String(willOpen));
-        menu.hidden = !willOpen;
-        if (willOpen) positionMenu(shell, button, menu);
+        if (willOpen) {
+          openMenu(shell, button, menu);
+        } else {
+          closeMenu(shell);
+        }
       });
       select.addEventListener("change", sync);
       select.addEventListener("lora-select-sync", sync);
@@ -639,6 +664,13 @@ export function createBootstrapModule({
         refreshItems().catch(showError);
       }
     });
+    refs.listThumbModeSelect?.addEventListener("change", () => {
+      state.listThumbMode = refs.listThumbModeSelect.value === "combined" ? "combined" : "result";
+      saveStored(STORAGE_KEYS.listThumbMode, state.listThumbMode);
+      renderFilters();
+      renderViewer();
+      refreshItems({ skipDirtyCheck: true, suppressSelectionSync: true }).catch(showError);
+    });
 
     refs.viewModeGroup.addEventListener("click", (event) => {
       const button = event.target.closest("button[data-mode]");
@@ -649,6 +681,13 @@ export function createBootstrapModule({
     });
 
     document.addEventListener("keydown", (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        if (!event.repeat) {
+          runWithStatus("正在保存项目...", () => saveCurrentProject()).catch(showError);
+        }
+        return;
+      }
       if (shouldIgnoreListArrowNavigation(event.target)) return;
       if (!state.items.length) return;
       if (event.key === "ArrowDown") {
@@ -725,7 +764,8 @@ export function createBootstrapModule({
     });
 
     refs.translateCurrentBtn.addEventListener("click", () => runWithStatus("正在翻译当前内容...", () => translateCurrent()).catch(showError));
-    refs.batchAddBtn.addEventListener("click", () => runWithStatus("正在批量添加短语...", () => batchAdd()).catch(showError));
+    refs.batchAddBeforeBtn?.addEventListener("click", () => runWithStatus("正在批量添加短语到最前...", () => batchAdd("before")).catch(showError));
+    refs.batchAddAfterBtn?.addEventListener("click", () => runWithStatus("正在批量添加短语到最后...", () => batchAdd("after")).catch(showError));
     refs.batchDeleteBtn.addEventListener("click", () => runWithStatus("正在批量删除短语...", () => batchDelete()).catch(showError));
     refs.batchReplaceBtn.addEventListener("click", () => runWithStatus("正在批量替换短语...", () => batchReplace()).catch(showError));
     refs.batchRenameAddPrefixBtn?.addEventListener("click", () => runWithStatus("正在批量添加文件名前缀...", () => batchRename("add_prefix")).catch(showError));

@@ -144,13 +144,33 @@ export function createCaptionModule({
     return !query || name.toLowerCase().includes(query.toLowerCase());
   }
 
+  function showModelMenu(menu, picker) {
+    window.clearTimeout(menu.closeTimer);
+    menu.classList.remove("menu-open", "menu-closing");
+    menu.classList.add("select-menu-portal");
+    menu.hidden = false;
+    positionModelMenu(picker, menu);
+    window.requestAnimationFrame(() => {
+      menu.classList.add("menu-open");
+    });
+  }
+
+  function hideModelMenu(menu, picker, button) {
+    window.clearTimeout(menu.closeTimer);
+    button?.setAttribute("aria-expanded", "false");
+    picker?.classList.remove("drop-up", "menu-open");
+    menu.classList.remove("menu-open");
+    menu.classList.add("menu-closing");
+    menu.closeTimer = window.setTimeout(() => {
+      menu.hidden = true;
+      menu.classList.remove("menu-closing", "select-menu-portal", "drop-up");
+    }, 230);
+  }
+
   function closeApiModelMenu() {
     if (!refs.apiModelMenu) return;
     state.apiModelMenuOpen = false;
-    refs.apiModelMenu.hidden = true;
-    refs.apiModelMenu.classList.remove("select-menu-portal");
-    refs.apiModelMenuBtn?.setAttribute("aria-expanded", "false");
-    refs.apiModelPicker?.classList.remove("drop-up", "menu-open");
+    hideModelMenu(refs.apiModelMenu, refs.apiModelPicker, refs.apiModelMenuBtn);
   }
 
   function selectApiModel(name) {
@@ -162,10 +182,7 @@ export function createCaptionModule({
   function closeOllamaModelMenu() {
     if (!refs.ollamaModelMenu) return;
     state.ollamaModelMenuOpen = false;
-    refs.ollamaModelMenu.hidden = true;
-    refs.ollamaModelMenu.classList.remove("select-menu-portal");
-    refs.ollamaModelMenuBtn?.setAttribute("aria-expanded", "false");
-    refs.ollamaModelPicker?.classList.remove("drop-up", "menu-open");
+    hideModelMenu(refs.ollamaModelMenu, refs.ollamaModelPicker, refs.ollamaModelMenuBtn);
   }
 
   function selectOllamaModel(name) {
@@ -214,13 +231,11 @@ export function createCaptionModule({
     state.apiModelMenuOpen = true;
     refs.apiModelPicker?.classList.add("menu-open");
     if (refs.apiModelMenu.parentElement !== document.body) document.body.appendChild(refs.apiModelMenu);
-    refs.apiModelMenu.classList.add("select-menu-portal");
-    refs.apiModelMenu.hidden = false;
     refs.apiModelMenuBtn?.setAttribute("aria-expanded", "true");
     state.apiModelQuery = "";
     refs.apiModelSearch.value = "";
     renderApiModelSuggestions();
-    positionModelMenu(refs.apiModelPicker, refs.apiModelMenu);
+    showModelMenu(refs.apiModelMenu, refs.apiModelPicker);
     if (focusSearch) refs.apiModelSearch.focus();
   }
 
@@ -229,13 +244,11 @@ export function createCaptionModule({
     state.ollamaModelMenuOpen = true;
     refs.ollamaModelPicker?.classList.add("menu-open");
     if (refs.ollamaModelMenu.parentElement !== document.body) document.body.appendChild(refs.ollamaModelMenu);
-    refs.ollamaModelMenu.classList.add("select-menu-portal");
-    refs.ollamaModelMenu.hidden = false;
     refs.ollamaModelMenuBtn?.setAttribute("aria-expanded", "true");
     state.ollamaModelQuery = "";
     refs.ollamaModelSearch.value = "";
     renderOllamaSuggestions();
-    positionModelMenu(refs.ollamaModelPicker, refs.ollamaModelMenu);
+    showModelMenu(refs.ollamaModelMenu, refs.ollamaModelPicker);
     if (focusSearch) refs.ollamaModelSearch.focus();
   }
 
@@ -261,6 +274,7 @@ export function createCaptionModule({
     menu.style.top = opensUp
       ? `${Math.round(Math.max(viewportPadding, pickerRect.top - gap - menuHeight))}px`
       : `${Math.round(pickerRect.bottom + gap)}px`;
+    menu.classList.toggle("drop-up", opensUp);
   }
 
   function summarizeRemoteService(service, idleLabel) {

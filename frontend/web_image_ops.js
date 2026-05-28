@@ -7,6 +7,11 @@ export function createImageOpsModule({
   refreshItems,
   setAiStatusLine,
 }) {
+  function refreshViewerImages() {
+    state.workspaceImageVersion = (state.workspaceImageVersion || 0) + 1;
+    state.imageRefreshToken = `${Date.now()}-${state.workspaceImageVersion}-${state.workspace?.workspace_key || ""}`;
+  }
+
   function renderImageProcessStatus(process) {
     if (!process || process.status === "idle") {
       refs.processImagesBtn.disabled = false;
@@ -74,28 +79,30 @@ export function createImageOpsModule({
   async function scaleViewerItem() {
     if (!state.selectedName) return;
     const target = Number(refs.viewerTargetPixels.value || 4);
-    refs.viewerProcessStatus.textContent = "正在缩放当前条目图像...";
+    setAiStatusLine("正在缩放当前条目图像...");
     const data = await apiPost("/api/images/item/scale", {
       name: state.selectedName,
       target_megapixels: target,
     });
     state.currentItem = data.item;
-    refs.viewerProcessStatus.textContent = `已缩放当前条目 · 目标 ${target} 百万像素 · 16 倍数`;
+    refreshViewerImages();
+    setAiStatusLine(`已缩放当前条目 · 目标 ${target} 百万像素 · 16 倍数`);
     renderViewer();
     await refreshItems({ skipDirtyCheck: true, suppressSelectionSync: true });
   }
 
   async function matchViewerControlsToResult() {
     if (!state.selectedName) return;
-    refs.viewerProcessStatus.textContent = "正在匹配控制图到结果图尺寸...";
+    setAiStatusLine("正在匹配控制图到结果图尺寸...");
     const data = await apiPost("/api/images/item/match-result", {
       name: state.selectedName,
     });
     state.currentItem = data.item;
+    refreshViewerImages();
     const size = data.process?.target_size;
-    refs.viewerProcessStatus.textContent = Array.isArray(size)
+    setAiStatusLine(Array.isArray(size)
       ? `控制图已匹配结果图尺寸：${size[0]}×${size[1]}`
-      : "控制图已匹配结果图尺寸";
+      : "控制图已匹配结果图尺寸");
     renderViewer();
     await refreshItems({ skipDirtyCheck: true, suppressSelectionSync: true });
   }

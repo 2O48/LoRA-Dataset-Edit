@@ -3,6 +3,7 @@ export const DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434";
 export const STORAGE_KEYS = {
   utilityPanel: "lora-ui.utility-panel",
   viewMode: "lora-ui.view-mode",
+  listThumbMode: "lora-ui.list-thumb-mode",
   controlCount: "lora-ui.control-count",
   ignoreTokens: "lora-ui.ignore-tokens",
   autoOpenLastWorkspace: "lora-ui.auto-open-last-workspace",

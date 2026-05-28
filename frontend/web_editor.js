@@ -21,7 +21,16 @@ export function createEditorModule({
   onGlobalTagClick,
 }) {
   const GLOBAL_TAG_DRAG_TYPE = "application/x-lora-global-tag";
+  const GLOBAL_TAG_ROW_HEIGHT = 42;
+  const GLOBAL_TAG_ROW_GAP = 8;
+  const GLOBAL_TAG_IDLE_OVERSCAN = 1;
+  const GLOBAL_TAG_SCROLL_OVERSCAN = 5;
+  const GLOBAL_TAG_SCROLL_IDLE_MS = 140;
   let globalTagDragGhost = null;
+  let globalTagScrollFrame = 0;
+  let globalTagScrollEndTimer = 0;
+  let globalTagViewportSignature = "";
+  let globalTagScrolling = false;
 
   function normalizeGlobalTagQuery(value = state.globalTagQuery) {
     return `${value || ""}`.trim().toLowerCase();
@@ -329,6 +338,19 @@ export function createEditorModule({
     renderGlobalTags();
   });
 
+  refs.globalTagList?.addEventListener("scroll", () => {
+    if (!Array.isArray(state.globalTagVirtualRows)) return;
+    globalTagScrolling = true;
+    if (globalTagScrollEndTimer) window.clearTimeout(globalTagScrollEndTimer);
+    globalTagScrollEndTimer = window.setTimeout(() => {
+      globalTagScrollEndTimer = 0;
+      globalTagScrolling = false;
+      globalTagViewportSignature = "";
+      renderGlobalTagViewport();
+    }, GLOBAL_TAG_SCROLL_IDLE_MS);
+    scheduleGlobalTagViewportRender();
+  });
+
   function setQuickTagsDirty(value = true) {
     state.quickTagsDirty = Boolean(value);
     if (refs.quickTagSaveBtn) {
@@ -462,81 +484,145 @@ export function createEditorModule({
     }, 240);
   }
 
+  function createGlobalTagRow(row) {
+    const segment = row.segment || row.tag || "";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.draggable = false;
+    button.className = `global-tag-row${state.segmentQuery.toLowerCase() === segment.toLowerCase() ? " active" : ""}`;
+    button.title = "拖到左侧 Caption 中追加";
+    const name = document.createElement("span");
+    name.textContent = segment;
+    const count = document.createElement("span");
+    count.textContent = `${row.count}`;
+    button.appendChild(name);
+    button.appendChild(count);
+    button.addEventListener("click", (event) => {
+      if (state.globalTagSuppressClick) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      onGlobalTagClick(segment);
+    });
+    button.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      removeGlobalTagDragGhost();
+      state.globalTagPointerDrag = {
+        segment,
+        startX: event.clientX,
+        startY: event.clientY,
+        source: button,
+      };
+    });
+    button.addEventListener("mousedown", (event) => {
+      if (event.button !== 0) return;
+      removeGlobalTagDragGhost();
+      state.globalTagPointerDrag = {
+        segment,
+        startX: event.clientX,
+        startY: event.clientY,
+        source: button,
+      };
+    });
+    button.addEventListener("dragstart", (event) => {
+      state.globalTagDragging = segment;
+      button.classList.add("dragging");
+      event.dataTransfer?.setData(GLOBAL_TAG_DRAG_TYPE, segment);
+      event.dataTransfer?.setData("text/plain", segment);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
+    });
+    button.addEventListener("dragend", () => {
+      state.globalTagDragging = "";
+      button.classList.remove("dragging");
+      refs.captionEditor?.classList.remove("drag-over");
+      removeGlobalTagDragGhost();
+    });
+    return button;
+  }
+
+  function scheduleGlobalTagViewportRender() {
+    if (globalTagScrollFrame) return;
+    globalTagScrollFrame = window.requestAnimationFrame(() => {
+      globalTagScrollFrame = 0;
+      renderGlobalTagViewport();
+    });
+  }
+
+  function renderGlobalTagViewport() {
+    const rows = Array.isArray(state.globalTagVirtualRows) ? state.globalTagVirtualRows : [];
+    const list = refs.globalTagList;
+    if (!list) return;
+    const rowStep = GLOBAL_TAG_ROW_HEIGHT + GLOBAL_TAG_ROW_GAP;
+    const viewportHeight = list.clientHeight || 480;
+    const overscan = globalTagScrolling ? GLOBAL_TAG_SCROLL_OVERSCAN : GLOBAL_TAG_IDLE_OVERSCAN;
+    const start = Math.max(0, Math.floor(list.scrollTop / rowStep) - overscan);
+    const end = Math.min(rows.length, Math.ceil((list.scrollTop + viewportHeight) / rowStep) + overscan);
+    const active = state.segmentQuery.toLowerCase();
+    const signature = `${start}:${end}:${rows.length}:${active}:${globalTagScrolling ? "scroll" : "idle"}`;
+    if (signature === globalTagViewportSignature) return;
+    globalTagViewportSignature = signature;
+
+    const canvas = document.createElement("div");
+    canvas.className = "global-tag-virtual-canvas";
+    canvas.style.height = `${rows.length * rowStep}px`;
+
+    const fragment = document.createDocumentFragment();
+    rows.slice(start, end).forEach((row, offset) => {
+      const item = createGlobalTagRow(row);
+      item.style.transform = `translate3d(0, ${(start + offset) * rowStep}px, 0)`;
+      fragment.appendChild(item);
+    });
+    canvas.appendChild(fragment);
+    list.replaceChildren(canvas);
+  }
+
+  function setGlobalTagsEmpty(text) {
+    if (globalTagScrollEndTimer) {
+      window.clearTimeout(globalTagScrollEndTimer);
+      globalTagScrollEndTimer = 0;
+    }
+    globalTagScrolling = false;
+    const empty = document.createElement("div");
+    empty.className = "global-tag-empty";
+    empty.textContent = text;
+    refs.globalTagList.replaceChildren(empty);
+  }
+
+  function resetGlobalTagSearchState(query, rows) {
+    if (refs.globalTagSearch) {
+      refs.globalTagSearch.disabled = false;
+      refs.globalTagSearch.placeholder = `搜索全局短语，共${state.globalSegments.length}项`;
+      refs.globalTagSearch.title = query ? `匹配 ${rows.length} / 共 ${state.globalSegments.length} 项` : `共 ${state.globalSegments.length} 项`;
+    }
+    if (refs.globalTagCount) refs.globalTagCount.textContent = query ? `${rows.length}/${state.globalSegments.length}` : `${state.globalSegments.length}`;
+  }
+
   function renderGlobalTags() {
     const query = normalizeGlobalTagQuery();
     const rows = state.globalSegments.filter((row) => {
       const segment = `${row.segment || row.tag || ""}`;
       return !query || segment.toLowerCase().includes(query);
     });
-    if (refs.globalTagSearch) {
-      refs.globalTagSearch.placeholder = `搜索全局短语，共${state.globalSegments.length}项`;
-      refs.globalTagSearch.title = query ? `匹配 ${rows.length} / 共 ${state.globalSegments.length} 项` : `共 ${state.globalSegments.length} 项`;
+    const previousQuery = state.globalTagVirtualQuery || "";
+    state.globalTagVirtualQuery = query;
+    state.globalTagVirtualRows = rows;
+    if (globalTagScrollEndTimer) {
+      window.clearTimeout(globalTagScrollEndTimer);
+      globalTagScrollEndTimer = 0;
     }
-    if (refs.globalTagCount) refs.globalTagCount.textContent = query ? `${rows.length}/${state.globalSegments.length}` : `${state.globalSegments.length}`;
-    refs.globalTagList.textContent = "";
+    globalTagScrolling = false;
+    globalTagViewportSignature = "";
+    resetGlobalTagSearchState(query, rows);
+    refs.globalTagList.classList.toggle("virtualized", rows.length > 0);
     if (!rows.length) {
-      const empty = document.createElement("div");
-      empty.className = "global-tag-empty";
-      empty.textContent = query ? "没有匹配的全局短语。" : "暂无全局短语。";
-      refs.globalTagList.appendChild(empty);
+      setGlobalTagsEmpty(query ? "没有匹配的全局短语。" : "暂无全局短语。");
       return;
     }
-    for (const row of rows.slice(0, 600)) {
-      const segment = row.segment || row.tag || "";
-      const button = document.createElement("button");
-      button.type = "button";
-      button.draggable = false;
-      button.className = `global-tag-row${state.segmentQuery.toLowerCase() === segment.toLowerCase() ? " active" : ""}`;
-      button.title = "拖到左侧 Caption 中追加";
-      const name = document.createElement("span");
-      name.textContent = segment;
-      const count = document.createElement("span");
-      count.textContent = `${row.count}`;
-      button.appendChild(name);
-      button.appendChild(count);
-      button.addEventListener("click", (event) => {
-        if (state.globalTagSuppressClick) {
-          event.preventDefault();
-          event.stopPropagation();
-          return;
-        }
-        onGlobalTagClick(segment);
-      });
-      button.addEventListener("pointerdown", (event) => {
-        if (event.button !== 0) return;
-        removeGlobalTagDragGhost();
-        state.globalTagPointerDrag = {
-          segment,
-          startX: event.clientX,
-          startY: event.clientY,
-          source: button,
-        };
-      });
-      button.addEventListener("mousedown", (event) => {
-        if (event.button !== 0) return;
-        removeGlobalTagDragGhost();
-        state.globalTagPointerDrag = {
-          segment,
-          startX: event.clientX,
-          startY: event.clientY,
-          source: button,
-        };
-      });
-      button.addEventListener("dragstart", (event) => {
-        state.globalTagDragging = segment;
-        button.classList.add("dragging");
-        event.dataTransfer?.setData(GLOBAL_TAG_DRAG_TYPE, segment);
-        event.dataTransfer?.setData("text/plain", segment);
-        if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
-      });
-      button.addEventListener("dragend", () => {
-        state.globalTagDragging = "";
-        button.classList.remove("dragging");
-        refs.captionEditor?.classList.remove("drag-over");
-        removeGlobalTagDragGhost();
-      });
-      refs.globalTagList.appendChild(button);
+    if (previousQuery !== query) {
+      refs.globalTagList.scrollTop = 0;
     }
+    renderGlobalTagViewport();
   }
 
   function clearCaptionAutosaveTimer() {
@@ -623,16 +709,17 @@ export function createEditorModule({
     refs.translatedText.value = data.translated;
   }
 
-  async function batchAdd() {
+  async function batchAdd(position = "after") {
     const segments = splitSegmentInput(refs.batchAddInput.value);
     if (!segments.length) {
       setAiStatusLine("请输入要批量添加的短语。");
       return;
     }
-    await apiPost("/api/batch/add-segments", { names: visibleNames(), segments });
+    const normalizedPosition = position === "before" ? "before" : "after";
+    await apiPost("/api/batch/add-segments", { names: visibleNames(), segments, position: normalizedPosition });
     refs.batchAddInput.value = "";
     await refreshItems();
-    setAiStatusLine(`批量添加完成：${segments.length} 个短语`);
+    setAiStatusLine(`批量添加至${normalizedPosition === "before" ? "最前" : "最后"}完成：${segments.length} 个短语`);
   }
 
   async function batchDelete() {

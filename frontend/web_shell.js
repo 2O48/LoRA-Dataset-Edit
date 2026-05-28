@@ -13,13 +13,31 @@ export function createShellModule({
     return refs.utilityPageShell?.querySelector(`.utility-panel[data-panel="${panel}"]`);
   }
 
+  function syncCaptionSettingsPanel() {
+    const shell = refs.workbenchShell;
+    if (!shell) return;
+    refs.captionSettingsShell?.setAttribute("aria-hidden", state.captionSettingsOpen ? "false" : "true");
+
+    if (state.captionSettingsOpen) {
+      shell.classList.remove("caption-settings-resizer-hidden");
+      shell.classList.add("caption-settings-rendered");
+      void shell.offsetWidth;
+      shell.classList.add("caption-settings-open");
+      return;
+    }
+
+    if (shell.classList.contains("caption-settings-open")) {
+      shell.classList.add("caption-settings-resizer-hidden");
+    }
+    shell.classList.remove("caption-settings-open");
+  }
+
   function renderUtilityPanelState() {
     const panel = utilityPanelExists(state.utilityPanel) ? state.utilityPanel : "workspace";
     state.utilityPanel = panel;
     refs.utilityPageShell?.setAttribute("aria-hidden", state.utilityOpen ? "false" : "true");
     refs.workbenchShell?.classList.toggle("utility-open", state.utilityOpen);
-    refs.captionSettingsShell?.setAttribute("aria-hidden", state.captionSettingsOpen ? "false" : "true");
-    refs.workbenchShell?.classList.toggle("caption-settings-open", state.captionSettingsOpen);
+    syncCaptionSettingsPanel();
     if (refs.utilityPageTitle) {
       refs.utilityPageTitle.textContent = UTILITY_PANEL_LABELS[panel] || "配置";
     }
@@ -34,6 +52,8 @@ export function createShellModule({
     refs.captionSettingsShell?.querySelectorAll(".utility-panel").forEach((node) => {
       node.classList.toggle("active", state.captionSettingsOpen);
     });
+    refs.openCaptionSettingsBtn?.classList.toggle("active", state.captionSettingsOpen);
+    refs.openCaptionSettingsBtn?.setAttribute("aria-pressed", String(state.captionSettingsOpen));
   }
 
   function setUtilityPanel(panel, { open = true, persist = true } = {}) {
@@ -52,7 +72,8 @@ export function createShellModule({
   }
 
   function toggleCaptionSettingsPanel(forceOpen = null) {
-    state.captionSettingsOpen = forceOpen === null ? !state.captionSettingsOpen : Boolean(forceOpen);
+    const nextOpen = forceOpen === null ? !state.captionSettingsOpen : Boolean(forceOpen);
+    state.captionSettingsOpen = nextOpen;
     renderUtilityPanelState();
   }
 

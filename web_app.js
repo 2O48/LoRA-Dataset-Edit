@@ -49,6 +49,7 @@ const state = {
   browserItems: [],
   browserMessage: "",
   viewMode: window.localStorage.getItem(STORAGE_KEYS.viewMode) || "two",
+  listThumbMode: window.localStorage.getItem(STORAGE_KEYS.listThumbMode) || "result",
   viewerImageMode: "fit",
   currentText: "",
   captionSavedText: "",
@@ -160,7 +161,7 @@ const refs = {
   apiAiStatusText: document.querySelector("#apiAiStatusText"),
   ollamaAiStatusText: document.querySelector("#ollamaAiStatusText"),
   filterGroup: document.querySelector("#filterGroup"),
-  filterSummary: document.querySelector("#filterSummary"),
+  listThumbModeSelect: document.querySelector("#listThumbModeSelect"),
   tagSearch: document.querySelector("#tagSearch"),
   itemList: document.querySelector("#itemList"),
   itemFolderFilters: document.querySelector("#itemFolderFilters"),
@@ -169,11 +170,9 @@ const refs = {
   currentMeta: document.querySelector("#currentMeta"),
   viewModeGroup: document.querySelector("#viewModeGroup"),
   viewerGrid: document.querySelector("#viewerGrid"),
-  resolutionNote: document.querySelector("#resolutionNote"),
   viewerTargetPixels: document.querySelector("#viewerTargetPixels"),
   viewerScaleBtn: document.querySelector("#viewerScaleBtn"),
   viewerMatchResultBtn: document.querySelector("#viewerMatchResultBtn"),
-  viewerProcessStatus: document.querySelector("#viewerProcessStatus"),
   captionEditor: document.querySelector("#captionEditor"),
   captionHighlight: document.querySelector("#captionHighlight"),
   tagChips: document.querySelector("#tagChips"),
@@ -192,7 +191,8 @@ const refs = {
   batchDeleteInput: document.querySelector("#batchDeleteInput"),
   batchReplaceOld: document.querySelector("#batchReplaceOld"),
   batchReplaceNew: document.querySelector("#batchReplaceNew"),
-  batchAddBtn: document.querySelector("#batchAddBtn"),
+  batchAddBeforeBtn: document.querySelector("#batchAddBeforeBtn"),
+  batchAddAfterBtn: document.querySelector("#batchAddAfterBtn"),
   batchDeleteBtn: document.querySelector("#batchDeleteBtn"),
   batchReplaceBtn: document.querySelector("#batchReplaceBtn"),
   batchRenameAddInput: document.querySelector("#batchRenameAddInput"),
@@ -284,23 +284,39 @@ function createAppDialog() {
   let resolver = null;
   let dialogKind = "alert";
   let previousFocus = null;
+  let closeTimer = 0;
 
   function finish(value) {
     if (!resolver || !root) return;
     const resolve = resolver;
     resolver = null;
-    root.setAttribute("aria-hidden", "true");
-    document.body.classList.remove("dialog-open");
-    input.value = "";
-    if (previousFocus?.focus) previousFocus.focus();
-    resolve(value);
+    root.classList.remove("dialog-open");
+    root.classList.add("dialog-closing");
+    if (closeTimer) window.clearTimeout(closeTimer);
+    closeTimer = window.setTimeout(() => {
+      closeTimer = 0;
+      root.setAttribute("aria-hidden", "true");
+      root.classList.remove("dialog-closing");
+      document.body.classList.remove("dialog-open");
+      input.value = "";
+      if (previousFocus?.focus) previousFocus.focus();
+      resolve(value);
+    }, 180);
   }
 
   function open({ kind = "alert", titleText = "提示", messageText = "", defaultValue = "" } = {}) {
     if (!root || !title || !message || !input || !cancelBtn || !confirmBtn) {
       return Promise.resolve(kind === "prompt" ? null : kind === "confirm" ? false : true);
     }
-    if (resolver) finish(kind === "prompt" ? null : false);
+    if (resolver) {
+      const resolvePrevious = resolver;
+      resolver = null;
+      resolvePrevious(kind === "prompt" ? null : false);
+    }
+    if (closeTimer) {
+      window.clearTimeout(closeTimer);
+      closeTimer = 0;
+    }
     dialogKind = kind;
     previousFocus = document.activeElement;
     title.textContent = titleText || "提示";
@@ -310,10 +326,12 @@ function createAppDialog() {
     cancelBtn.hidden = kind === "alert";
     root.dataset.kind = kind;
     root.setAttribute("aria-hidden", "false");
+    root.classList.remove("dialog-closing");
     document.body.classList.add("dialog-open");
     return new Promise((resolve) => {
       resolver = resolve;
       requestAnimationFrame(() => {
+        root.classList.add("dialog-open");
         const target = kind === "prompt" ? input : confirmBtn;
         target.focus();
         if (kind === "prompt") input.select();
