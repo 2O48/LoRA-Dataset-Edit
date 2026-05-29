@@ -35,6 +35,8 @@ const state = {
   globalTagPointerDrag: null,
   globalTagSuppressClick: false,
   selectedName: "",
+  batchSelectedNames: new Set(),
+  batchSelectionAnchor: "",
   currentItem: null,
   filter: "all",
   itemFolderFilter: "",

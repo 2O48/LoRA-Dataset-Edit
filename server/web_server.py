@@ -303,11 +303,14 @@ class AppHandler(BaseHTTPRequestHandler):
 
         try:
             if path == "/api/workspace/open":
+                def workspace_dir_value(key: str):
+                    return body.get(key) if key in body else None
+
                 summary = WORKSPACE.open_dirs(
-                    control1_dir=body.get("control1_dir") or None,
-                    control2_dir=body.get("control2_dir") or None,
-                    control3_dir=body.get("control3_dir") or None,
-                    result_dir=body.get("result_dir") or None,
+                    control1_dir=workspace_dir_value("control1_dir"),
+                    control2_dir=workspace_dir_value("control2_dir"),
+                    control3_dir=workspace_dir_value("control3_dir"),
+                    result_dir=workspace_dir_value("result_dir"),
                     control_count=body.get("control_count"),
                     ignore_tokens=body.get("ignore_tokens"),
                 )
@@ -441,6 +444,24 @@ class AppHandler(BaseHTTPRequestHandler):
                     str(body.get("name", "") or ""),
                     str(body.get("source_role", "") or ""),
                     str(body.get("target_role", "") or ""),
+                )
+                return self._send_json({"ok": True, **result})
+
+            if path == "/api/item/assign-control-image":
+                result = WORKSPACE.assign_control_image(
+                    str(body.get("source_name", "") or ""),
+                    str(body.get("target_name", "") or ""),
+                    str(body.get("target_role", "") or ""),
+                    str(body.get("source_role", "") or ""),
+                )
+                return self._send_json({"ok": True, **result})
+
+            if path == "/api/item/upload-control-image":
+                result = WORKSPACE.upload_control_image(
+                    str(body.get("target_name", "") or ""),
+                    str(body.get("target_role", "") or ""),
+                    str(body.get("filename", "") or ""),
+                    str(body.get("data", "") or ""),
                 )
                 return self._send_json({"ok": True, **result})
 
