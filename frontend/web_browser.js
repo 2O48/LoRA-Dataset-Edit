@@ -21,6 +21,7 @@ export function createBrowserModule({
   setAiStatusLine,
 }) {
   const ITEM_DRAG_TYPE = "application/x-vds-item-name";
+  const ITEM_ROLE_DRAG_TYPE = "application/x-vds-item-role";
   const VIEWER_ROLE_DRAG_TYPE = "application/x-vds-viewer-role";
   const ITEM_CARD_SIZE_ANIMATION = {
     duration: 320,
@@ -102,6 +103,7 @@ export function createBrowserModule({
     img.title = slot.title || "";
     img.loading = "lazy";
     img.decoding = "async";
+    img.draggable = false;
     slot.replaceChildren(img);
     slot.classList.add("loaded");
   }
@@ -117,7 +119,18 @@ export function createBrowserModule({
     const slot = document.createElement("div");
     slot.className = "item-thumb-lazy";
     slot.dataset.src = imageUrl(role, item.name, true, 192, 156);
+    slot.dataset.name = item.name;
+    slot.dataset.role = role;
+    slot.draggable = true;
     slot.title = ROLE_LABELS[role] || role;
+    slot.addEventListener("dragstart", (event) => {
+      event.stopPropagation();
+      event.dataTransfer?.setData(ITEM_DRAG_TYPE, item.name);
+      event.dataTransfer?.setData(ITEM_ROLE_DRAG_TYPE, role);
+      event.dataTransfer?.setData("text/plain", item.name);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "copyMove";
+      slot.closest(".item-card")?.classList.add("dragging");
+    });
     const observer = ensureItemThumbObserver();
     if (observer) {
       observer.observe(slot);
@@ -125,6 +138,49 @@ export function createBrowserModule({
       loadItemThumb(slot);
     }
     return slot;
+  }
+
+  function canDropItemOnControlRole(role) {
+    const roleIndex = ["control1", "control2", "control3"].indexOf(role);
+    return roleIndex >= 0 && activeControlCount() >= roleIndex + 1;
+  }
+
+  function dragEventHasControlImagePayload(event) {
+    const types = Array.from(event.dataTransfer?.types || []);
+    return types.includes(ITEM_DRAG_TYPE) || types.includes("Files");
+  }
+
+  function createItemControlDropSlot(item, role) {
+    const placeholder = document.createElement("div");
+    placeholder.className = "item-thumb-empty item-thumb-drop";
+    placeholder.dataset.dropRole = role;
+    placeholder.dataset.dropName = item.name;
+    placeholder.textContent = (ROLE_LABELS[role] || role).replace(/\s+/g, "");
+    placeholder.title = `拖入图片作为${ROLE_LABELS[role] || role}`;
+    if (!canDropItemOnControlRole(role)) return placeholder;
+
+    placeholder.addEventListener("dragover", (event) => {
+      if (!dragEventHasControlImagePayload(event)) return;
+      event.preventDefault();
+      placeholder.classList.add("drag-over");
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    });
+    placeholder.addEventListener("dragleave", (event) => {
+      if (placeholder.contains(event.relatedTarget)) return;
+      placeholder.classList.remove("drag-over");
+    });
+    placeholder.addEventListener("drop", (event) => {
+      const sourceName = event.dataTransfer?.getData(ITEM_DRAG_TYPE) || "";
+      const sourceRole = event.dataTransfer?.getData(ITEM_ROLE_DRAG_TYPE) || "result";
+      const file = Array.from(event.dataTransfer?.files || []).find((entry) => entry.type.startsWith("image/") || /\.(avif|bmp|gif|jpe?g|png|tiff?|webp)$/i.test(entry.name));
+      if (!sourceName && !file) return;
+      event.preventDefault();
+      event.stopPropagation();
+      placeholder.classList.remove("drag-over");
+      if (sourceName) assignItemControlImage(sourceName, item.name, role, sourceRole).catch(showError || console.error);
+      else uploadControlImageFile(file, item.name, role).catch(showError || console.error);
+    });
+    return placeholder;
   }
 
   function activeControlCount() {
@@ -161,7 +217,7 @@ export function createBrowserModule({
 
   function renderFilterSummary() {
     if (!refs.listThumbModeSelect) return;
-    const showCombined = activeControlCount() > 0 && controlImageCount() > 0;
+    const showCombined = activeControlCount() > 0;
     if (!showCombined && state.listThumbMode === "combined") {
       state.listThumbMode = "result";
       saveStored(STORAGE_KEYS.listThumbMode, state.listThumbMode);
@@ -252,6 +308,65 @@ export function createBrowserModule({
   function filteredItems() {
     const folder = state.itemFolderFilter || "";
     return folder ? state.items.filter((item) => itemFolder(item.name) === folder) : [...state.items];
+  }
+
+  function batchSelection() {
+    if (!(state.batchSelectedNames instanceof Set)) state.batchSelectedNames = new Set();
+    return state.batchSelectedNames;
+  }
+
+  function visibleItemNameSet() {
+    return new Set((state.visibleItems || []).map((item) => item.name));
+  }
+
+  function selectedBatchNames() {
+    const visibleNames = visibleItemNameSet();
+    return [...batchSelection()].filter((name) => visibleNames.has(name));
+  }
+
+  function clearBatchSelection() {
+    batchSelection().clear();
+    state.batchSelectionAnchor = "";
+  }
+
+  function toggleBatchSelection(name) {
+    if (!name) return;
+    const selection = batchSelection();
+    if (selection.has(name)) selection.delete(name);
+    else selection.add(name);
+  }
+
+  function addBatchSelectionRange(targetName) {
+    const names = (state.visibleItems || []).map((item) => item.name);
+    if (!names.length || !targetName) return 0;
+    const anchorName = names.includes(state.batchSelectionAnchor)
+      ? state.batchSelectionAnchor
+      : names.includes(state.selectedName)
+        ? state.selectedName
+        : selectedBatchNames()[0] || targetName;
+    const start = names.indexOf(anchorName);
+    const end = names.indexOf(targetName);
+    if (start < 0 || end < 0) {
+      batchSelection().add(targetName);
+      state.batchSelectionAnchor = targetName;
+      return selectedBatchNames().length;
+    }
+    const [from, to] = start < end ? [start, end] : [end, start];
+    for (const name of names.slice(from, to + 1)) {
+      batchSelection().add(name);
+    }
+    state.batchSelectionAnchor = targetName;
+    return selectedBatchNames().length;
+  }
+
+  function pruneBatchSelection() {
+    const visibleNames = visibleItemNameSet();
+    for (const name of [...batchSelection()]) {
+      if (!visibleNames.has(name)) batchSelection().delete(name);
+    }
+    if (state.batchSelectionAnchor && !visibleNames.has(state.batchSelectionAnchor)) {
+      state.batchSelectionAnchor = "";
+    }
   }
 
   function renderFolderFilters() {
@@ -363,11 +478,39 @@ export function createBrowserModule({
     });
   }
 
+  function configureItemContextMenu(mode, count = 1) {
+    if (!itemContextMenu) return;
+    itemContextMenu.querySelectorAll("button[data-action]").forEach((button) => {
+      const action = button.dataset.action;
+      const label = button.querySelector("span");
+      if (mode === "batch") {
+        button.hidden = !["clone", "trash"].includes(action);
+        if (action === "clone" && label) label.textContent = `克隆所选 ${count} 项`;
+        if (action === "trash" && label) label.textContent = `删除所选 ${count} 项`;
+        return;
+      }
+      button.hidden = false;
+      if (action === "clone" && label) label.textContent = "克隆";
+      if (action === "trash" && label) label.textContent = "删除";
+    });
+  }
+
   function openItemContextMenu(event, item, title) {
     if (!itemContextMenu || !item?.name) return;
     event.preventDefault();
     event.stopPropagation();
-    itemContextTarget = { item, title };
+    const selectedNames = selectedBatchNames();
+    if (selectedNames.length > 1) {
+      itemContextTarget = { mode: "batch", names: selectedNames };
+      configureItemContextMenu("batch", selectedNames.length);
+    } else {
+      if (selectedNames.length) {
+        clearBatchSelection();
+        updateItemCardActiveState();
+      }
+      itemContextTarget = { mode: "single", item, title };
+      configureItemContextMenu("single");
+    }
     positionItemContextMenu(event);
   }
 
@@ -385,6 +528,23 @@ export function createBrowserModule({
     setAiStatusLine(`已克隆：${displayItemName(item.name)} -> ${displayItemName(data.new_name || "")}`);
     await refreshItems({ skipDirtyCheck: true, suppressSelectionSync: true });
     await selectItem(data.new_name || item.name, true, { skipDirtyCheck: true });
+  }
+
+  async function cloneBatchItems(names) {
+    const targets = [...new Set(names || [])].filter(Boolean);
+    if (!targets.length) return;
+    if (targets.includes(state.selectedName) && !(await confirmDiscardCaptionChanges())) return;
+    const created = [];
+    for (const name of targets) {
+      const data = await apiPost("/api/item/clone", { name });
+      if (data.workspace) applyWorkspaceSummary(data.workspace);
+      if (data.new_name) created.push(data.new_name);
+    }
+    clearBatchSelection();
+    setAiStatusLine(`已克隆 ${targets.length} 项`);
+    await refreshItems({ skipDirtyCheck: true, suppressSelectionSync: true });
+    const nextName = created[created.length - 1] || targets[0];
+    if (nextName) await selectItem(nextName, true, { skipDirtyCheck: true });
   }
 
   async function trashItemFiles(item) {
@@ -410,16 +570,47 @@ export function createBrowserModule({
     }
   }
 
+  async function trashBatchItems(names) {
+    const targets = [...new Set(names || [])].filter(Boolean);
+    if (!targets.length) return;
+    if (targets.includes(state.selectedName) && !(await confirmDiscardCaptionChanges())) return;
+    const ok = await window.appConfirm(`确定将所选 ${targets.length} 项的图像和关联 TXT 移到系统回收站吗？`, "批量删除图片");
+    if (!ok) return;
+    for (const name of targets) {
+      const data = await apiPost("/api/item/trash", { name });
+      if (data.workspace) applyWorkspaceSummary(data.workspace);
+    }
+    clearBatchSelection();
+    setAiStatusLine(`已移到系统回收站：${targets.length} 项`);
+    await refreshItems({ skipDirtyCheck: true, suppressSelectionSync: true });
+    const next = state.visibleItems[0];
+    if (next) {
+      await selectItem(next.name, true, { skipDirtyCheck: true });
+    } else {
+      state.selectedName = "";
+      state.currentItem = null;
+      setCaptionEditorText("", { markSaved: true });
+      renderViewer();
+      renderTags();
+      renderGlobalTags();
+      renderSelectionSummary();
+    }
+  }
+
   function ensureItemContextMenuEvents() {
     if (!itemContextMenu || state.itemContextMenuBound) return;
     state.itemContextMenuBound = true;
     itemContextMenu.addEventListener("click", (event) => {
       const button = event.target.closest("button[data-action]");
       if (!button || !itemContextTarget) return;
-      const { item, title } = itemContextTarget;
+      const { item, title, names, mode } = itemContextTarget;
       closeItemContextMenu();
       const action = button.dataset.action;
-      if (action === "rename") {
+      if (mode === "batch" && action === "clone") {
+        cloneBatchItems(names).catch(showError || console.error);
+      } else if (mode === "batch" && action === "trash") {
+        trashBatchItems(names).catch(showError || console.error);
+      } else if (action === "rename") {
         beginInlineItemRename(item, title).catch(showError || console.error);
       } else if (action === "clone") {
         cloneItemFiles(item).catch(showError || console.error);
@@ -435,6 +626,13 @@ export function createBrowserModule({
     });
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") closeItemContextMenu();
+      const isSelectAll = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a";
+      if (!isSelectAll || shouldIgnoreListArrowNavigation(event.target) || !state.visibleItems?.length) return;
+      event.preventDefault();
+      state.visibleItems.forEach((item) => batchSelection().add(item.name));
+      state.batchSelectionAnchor = state.visibleItems[0]?.name || "";
+      renderItemList();
+      setAiStatusLine(`已选择当前列表 ${state.visibleItems.length} 项`);
     });
     window.addEventListener("resize", closeItemContextMenu);
     document.addEventListener("scroll", closeItemContextMenu, true);
@@ -578,6 +776,7 @@ export function createBrowserModule({
   function updateItemCardActiveState() {
     refs.itemList.querySelectorAll(".item-card").forEach((card) => {
       card.classList.toggle("active", card.dataset.name === state.selectedName);
+      card.classList.toggle("multi-selected", batchSelection().has(card.dataset.name));
     });
   }
 
@@ -614,7 +813,7 @@ export function createBrowserModule({
   }
 
   function previewRoleLabel(role) {
-    return role === "result" ? "原图" : ROLE_LABELS[role] || role;
+    return role === "result" ? "结果图" : ROLE_LABELS[role] || role;
   }
 
   function ensureImagePreviewOverlay() {
@@ -677,7 +876,16 @@ export function createBrowserModule({
     window.addEventListener("pointerup", stopImagePreviewMinimapDrag);
     window.addEventListener("resize", updateImagePreviewLayout);
     document.addEventListener("keydown", (event) => {
-      if (!imagePreview?.root.hidden && event.key === "Escape") closeImagePreview();
+      if (!imagePreview || imagePreview.root.hidden) return;
+      if (event.key === "Escape") {
+        closeImagePreview();
+        return;
+      }
+      if (["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"].includes(event.key)) {
+        event.preventDefault();
+        event.stopPropagation();
+        navigateImagePreview(event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1).catch(showError || console.error);
+      }
     });
 
     return imagePreview;
@@ -731,6 +939,16 @@ export function createBrowserModule({
     }
     imagePreview.root.classList.remove("minimap-visible", "minimap-dragging");
     document.body.classList.remove("image-preview-open");
+  }
+
+  async function navigateImagePreview(offset) {
+    if (!imagePreview || imagePreview.root.hidden || !offset) return;
+    const roles = existingPreviewRoles();
+    if (roles.length < 2) return;
+    const currentIndex = roles.indexOf(imagePreview.role || "result");
+    const baseIndex = currentIndex >= 0 ? currentIndex : 0;
+    const nextIndex = (baseIndex + offset + roles.length) % roles.length;
+    setImagePreviewRole(roles[nextIndex]);
   }
 
   function renderImagePreviewControls() {
@@ -926,11 +1144,50 @@ export function createBrowserModule({
     scheduleImagePreviewMinimapHide();
   }
 
+  async function assignItemControlImage(sourceName, targetName, targetRole, sourceRole = "result") {
+    if (!sourceName || !targetName || !canDropItemOnControlRole(targetRole)) return;
+    const data = await apiPost("/api/item/assign-control-image", {
+      source_name: sourceName,
+      source_role: sourceRole,
+      target_name: targetName,
+      target_role: targetRole,
+    });
+    if (data.workspace) applyWorkspaceSummary(data.workspace);
+    state.imageRefreshToken = `${Date.now()}-assign-${targetRole}-${targetName}`;
+    await refreshItems({ skipDirtyCheck: true });
+    setAiStatusLine?.(`已把 ${sourceName} 添加为 ${targetName} 的 ${ROLE_LABELS[targetRole] || targetRole}`);
+  }
+
+  function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    let binary = "";
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+    }
+    return window.btoa(binary);
+  }
+
+  async function uploadControlImageFile(file, targetName, targetRole) {
+    if (!file || !targetName || !canDropItemOnControlRole(targetRole)) return;
+    const data = await apiPost("/api/item/upload-control-image", {
+      target_name: targetName,
+      target_role: targetRole,
+      filename: file.name || "dropped.png",
+      data: arrayBufferToBase64(await file.arrayBuffer()),
+    });
+    if (data.workspace) applyWorkspaceSummary(data.workspace);
+    state.imageRefreshToken = `${Date.now()}-upload-${targetRole}-${targetName}`;
+    await refreshItems({ skipDirtyCheck: true });
+    setAiStatusLine?.(`已把 ${file.name || "拖入图片"} 添加为 ${targetName} 的 ${ROLE_LABELS[targetRole] || targetRole}`);
+  }
+
   function renderItemList() {
     ensureItemContextMenuEvents();
     renderFolderFilters();
     const items = filteredItems();
     state.visibleItems = items;
+    pruneBatchSelection();
     disconnectItemThumbObserver();
     refs.itemList.textContent = "";
     refs.listStats.textContent = state.itemFolderFilter ? `${items.length}/${state.items.length} 项` : `${items.length} 项`;
@@ -942,7 +1199,7 @@ export function createBrowserModule({
         ? [...activeControlRoles(), "result"]
         : ["result"];
       const card = document.createElement("article");
-      card.className = `item-card${item.name === state.selectedName ? " active" : ""}${thumbRoles.length > 1 ? " multi-thumb" : ""}`;
+      card.className = `item-card${item.name === state.selectedName ? " active" : ""}${batchSelection().has(item.name) ? " multi-selected" : ""}${thumbRoles.length > 1 ? " multi-thumb" : ""}`;
       card.dataset.name = item.name;
       card.draggable = true;
       card.title = "双击重命名图片";
@@ -952,13 +1209,16 @@ export function createBrowserModule({
           return;
         }
         event.dataTransfer?.setData(ITEM_DRAG_TYPE, item.name);
+        event.dataTransfer?.setData(ITEM_ROLE_DRAG_TYPE, "result");
         event.dataTransfer?.setData("text/plain", item.name);
-        if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+        if (event.dataTransfer) event.dataTransfer.effectAllowed = "copyMove";
         card.classList.add("dragging");
       });
       card.addEventListener("dragend", () => {
         card.classList.remove("dragging");
         refs.itemFolderFilters?.querySelectorAll(".drag-over").forEach((node) => node.classList.remove("drag-over"));
+        refs.itemList?.querySelectorAll(".item-thumb-drop.drag-over").forEach((node) => node.classList.remove("drag-over"));
+        clearViewerRoleDragClasses();
       });
       const thumbs = document.createElement("div");
       thumbs.className = thumbRoles.length > 1 ? "item-thumb-grid" : "item-thumb-single";
@@ -967,10 +1227,16 @@ export function createBrowserModule({
         if (item.exists[role]) {
           thumbs.appendChild(createItemThumbSlot(item, role));
         } else {
-          const placeholder = document.createElement("div");
-          placeholder.className = "item-thumb-empty";
-          placeholder.textContent = thumbRoles.length > 1 ? (ROLE_LABELS[role] || role).replace(/\s+/g, "") : "无结果";
-          thumbs.appendChild(placeholder);
+          thumbs.appendChild(
+            thumbRoles.length > 1 && canDropItemOnControlRole(role)
+              ? createItemControlDropSlot(item, role)
+              : (() => {
+                  const placeholder = document.createElement("div");
+                  placeholder.className = "item-thumb-empty";
+                  placeholder.textContent = thumbRoles.length > 1 ? (ROLE_LABELS[role] || role).replace(/\s+/g, "") : "无结果";
+                  return placeholder;
+                })(),
+          );
         }
       }
       card.appendChild(thumbs);
@@ -994,6 +1260,29 @@ export function createBrowserModule({
       card.appendChild(right);
       card.addEventListener("click", (event) => {
         if (event.target.closest(".item-rename-input")) return;
+        if (event.shiftKey) {
+          event.preventDefault();
+          const count = addBatchSelectionRange(item.name);
+          updateItemCardActiveState();
+          setAiStatusLine(`已选择 ${count} 项`);
+          return;
+        }
+        if (event.ctrlKey || event.metaKey) {
+          event.preventDefault();
+          if (!batchSelection().size && state.selectedName && state.selectedName !== item.name) {
+            batchSelection().add(state.selectedName);
+          }
+          toggleBatchSelection(item.name);
+          state.batchSelectionAnchor = item.name;
+          updateItemCardActiveState();
+          setAiStatusLine(`已选择 ${selectedBatchNames().length} 项`);
+          return;
+        }
+        if (selectedBatchNames().length) {
+          clearBatchSelection();
+          updateItemCardActiveState();
+        }
+        state.batchSelectionAnchor = item.name;
         if (event.detail > 1) {
           event.preventDefault();
           beginInlineItemRename(item, title).catch(showError || console.error);
@@ -1093,6 +1382,14 @@ export function createBrowserModule({
     );
   }
 
+  function canAssignListItemToViewerControl(targetRole) {
+    return Boolean(
+      state.currentItem
+      && canDropItemOnControlRole(targetRole)
+      && !state.currentItem.exists?.[targetRole],
+    );
+  }
+
   async function swapViewerItemRoles(sourceRole, targetRole) {
     if (!canSwapViewerRoles(sourceRole, targetRole)) {
       setAiStatusLine("需要两张已存在的图片才能对调控制图/结果图。");
@@ -1133,9 +1430,20 @@ export function createBrowserModule({
     });
     refs.viewerGrid.addEventListener("dragover", (event) => {
       const card = event.target.closest(".image-card");
-      if (!card || !Array.from(event.dataTransfer?.types || []).includes(VIEWER_ROLE_DRAG_TYPE)) return;
-      const sourceRole = state.viewerRoleDragging || "";
+      const types = Array.from(event.dataTransfer?.types || []);
+      if (!card) return;
       const targetRole = card.dataset.role || "";
+      if (types.includes(ITEM_DRAG_TYPE) && canAssignListItemToViewerControl(targetRole)) {
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+        refs.viewerGrid.querySelectorAll(".role-drop-target").forEach((node) => {
+          if (node !== card) node.classList.remove("role-drop-target");
+        });
+        card.classList.add("role-drop-target");
+        return;
+      }
+      if (!types.includes(VIEWER_ROLE_DRAG_TYPE)) return;
+      const sourceRole = state.viewerRoleDragging || "";
       if (!canSwapViewerRoles(sourceRole, targetRole)) return;
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
@@ -1152,10 +1460,17 @@ export function createBrowserModule({
     refs.viewerGrid.addEventListener("drop", (event) => {
       const card = event.target.closest(".image-card");
       if (!card) return;
+      const sourceName = event.dataTransfer?.getData(ITEM_DRAG_TYPE) || "";
+      const sourceItemRole = event.dataTransfer?.getData(ITEM_ROLE_DRAG_TYPE) || "result";
       const sourceRole = event.dataTransfer?.getData(VIEWER_ROLE_DRAG_TYPE) || "";
       const targetRole = card.dataset.role || "";
       state.viewerRoleDragging = "";
       clearViewerRoleDragClasses();
+      if (sourceName && canAssignListItemToViewerControl(targetRole)) {
+        event.preventDefault();
+        assignItemControlImage(sourceName, state.currentItem.name, targetRole, sourceItemRole).catch(showError || console.error);
+        return;
+      }
       if (!canSwapViewerRoles(sourceRole, targetRole)) return;
       event.preventDefault();
       swapViewerItemRoles(sourceRole, targetRole).catch(showError || console.error);
@@ -1234,6 +1549,7 @@ export function createBrowserModule({
   }
 
   function shouldIgnoreListArrowNavigation(target) {
+    if (document.body.classList.contains("image-preview-open")) return true;
     if (!(target instanceof Element)) return false;
     if (target.closest("input, textarea, select, button, a, .utility-page-shell, [contenteditable='true']")) return true;
     return false;
@@ -1337,12 +1653,13 @@ export function createBrowserModule({
   }
 
   function workspaceOpenPayloadFromInputs() {
+    const controlCount = Number(refs.controlCount.value ?? 1);
     return {
-      control1_dir: resolveWorkspaceInputPath?.(refs.control1Dir.value.trim()) || refs.control1Dir.value.trim(),
-      control2_dir: resolveWorkspaceInputPath?.(refs.control2Dir.value.trim()) || refs.control2Dir.value.trim(),
-      control3_dir: resolveWorkspaceInputPath?.(refs.control3Dir.value.trim()) || refs.control3Dir.value.trim(),
+      control1_dir: controlCount >= 1 ? (resolveWorkspaceInputPath?.(refs.control1Dir.value.trim()) || refs.control1Dir.value.trim()) : "",
+      control2_dir: controlCount >= 2 ? (resolveWorkspaceInputPath?.(refs.control2Dir.value.trim()) || refs.control2Dir.value.trim()) : "",
+      control3_dir: controlCount >= 3 ? (resolveWorkspaceInputPath?.(refs.control3Dir.value.trim()) || refs.control3Dir.value.trim()) : "",
       result_dir: resolveWorkspaceInputPath?.(refs.resultDir.value.trim()) || refs.resultDir.value.trim(),
-      control_count: Number(refs.controlCount.value ?? 1),
+      control_count: controlCount,
       ignore_tokens: refs.ignoreTokensInput.value.trim(),
     };
   }

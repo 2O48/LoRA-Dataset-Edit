@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import hashlib
 import os
@@ -270,7 +271,9 @@ class DatasetWorkspace:
                         continue
                     raw_name = self._relative_stem(result_path, file)
                     match_key = self._normalize_match_key(raw_name)
-                    group = groups.setdefault(match_key, {"paths": {}, "raw_names": {}, "txt_path": None, "txt_raw_name": ""})
+                    group = groups.get(match_key)
+                    if group is None:
+                        continue
                     current_name = group["txt_raw_name"]
                     if not current_name or _natural_key(raw_name) < _natural_key(current_name):
                         group["txt_path"] = file
@@ -351,7 +354,9 @@ class DatasetWorkspace:
                         continue
                     raw_name = self._relative_stem(result_path, file)
                     match_key = self._normalize_match_key(raw_name)
-                    group = groups.setdefault(match_key, {"paths": {}, "raw_names": {}, "txt_path": None, "txt_raw_name": ""})
+                    group = groups.get(match_key)
+                    if group is None:
+                        continue
                     current_name = group["txt_raw_name"]
                     if not current_name or _natural_key(raw_name) < _natural_key(current_name):
                         group["txt_path"] = file
@@ -698,6 +703,10 @@ class DatasetWorkspace:
         number = match.group(0)
         incremented = str(int(number) + 1).zfill(len(number))
         return f"{raw[:match.start()]}{incremented}{raw[match.end():]}"
+
+    def _clone_basename(self, basename: str, index: int = 1) -> str:
+        raw = self._clean_rename_basename(basename)
+        return f"{raw}_clone" if index <= 1 else f"{raw}_clone_{index}"
 
     def _clean_relative_folder(self, value: str) -> str:
         raw = str(value or "").strip().replace("\\", "/")
@@ -1387,9 +1396,11 @@ class DatasetWorkspace:
                 raise KeyError(name)
 
             old_name_path = Path(str(name).replace("\\", "/"))
-            candidate_basename = self._increment_clone_basename(old_name_path.name)
+            clone_index = 1
+            candidate_basename = self._clone_basename(old_name_path.name, clone_index)
             while not self._clone_targets_available(name, candidate_basename):
-                candidate_basename = self._increment_clone_basename(candidate_basename)
+                clone_index += 1
+                candidate_basename = self._clone_basename(old_name_path.name, clone_index)
             new_name = self._clone_name_candidate(name, candidate_basename)
 
             copy_pairs: list[tuple[Path, Path]] = []
@@ -1665,6 +1676,128 @@ class DatasetWorkspace:
             if txt_path and txt_path.exists():
                 return txt_path
             raise FileNotFoundError(f"No source file found for item: {name}")
+
+    def _first_item_image_path(self, name: str) -> Path:
+        for role in ("result", "control1", "control2", "control3"):
+            path = self.files.get(role, {}).get(name)
+            if path and path.exists():
+                return path
+        raise FileNotFoundError(f"No image file found for item: {name}")
+
+    def _item_image_path_for_role(self, name: str, role: str) -> Path:
+        if role not in IMAGE_ROLES:
+            raise ValueError("Source role must be an image role.")
+        path = self.files.get(role, {}).get(name)
+        if path and path.exists():
+            return path
+        raise FileNotFoundError(f"No {role} image found for item: {name}")
+
+    def _derive_control_dir(self, role: str) -> Path:
+        for reference_role in CONTROL_ROLES:
+            reference_dir = self.dirs.get(reference_role)
+            if reference_dir:
+                return reference_dir.parent / role
+        result_dir = self.dirs.get("result")
+        if result_dir:
+            result_folder_names = {"result", "results", "output", "outputs", "target", "targets", "final", "edited"}
+            return (result_dir.parent if result_dir.name.lower() in result_folder_names else result_dir) / role
+        raise ValueError("At least one loaded image directory is required before creating a control folder.")
+
+    def _control_dir_for_role(self, role: str) -> Path:
+        current = self.dirs.get(role)
+        target_dir = current if current else self._derive_control_dir(role)
+        target_dir.mkdir(parents=True, exist_ok=True)
+        self.dirs[role] = target_dir
+        return target_dir
+
+    def _reference_raw_name_for_control_drop(self, target_name: str) -> str:
+        for role in ("result", "control1", "control2", "control3"):
+            root = self.dirs.get(role)
+            path = self.files.get(role, {}).get(target_name)
+            if root and path and path.exists():
+                return self._relative_stem(root, path)
+        return target_name
+
+    def _next_control_drop_path(self, target_name: str, target_role: str, suffix: str) -> Path:
+        target_dir = self._control_dir_for_role(target_role)
+        reference_raw_name = self._reference_raw_name_for_control_drop(target_name)
+        name_suffix = f"_{target_role}"
+        index = 1
+        while True:
+            target_raw_name = self._append_name_suffix(reference_raw_name, name_suffix, index)
+            target_path = self._image_path_for_raw_name(target_dir, target_raw_name, suffix)
+            if not target_path.exists():
+                return target_path
+            index += 1
+
+    def _validate_control_drop_target(self, target_name: str, target_role: str):
+        if target_role not in CONTROL_ROLES:
+            raise ValueError("Target role must be a control image role.")
+        role_index = CONTROL_ROLES.index(target_role) + 1
+        if self.control_count < role_index:
+            raise ValueError(f"{target_role} is not enabled in the current workspace.")
+        if target_name not in self.file_names:
+            raise KeyError(target_name)
+        if target_name in self.files[target_role]:
+            raise ValueError(f"{target_role} already exists for {target_name}.")
+
+    def assign_control_image(self, source_name: str, target_name: str, target_role: str, source_role: str = "") -> dict:
+        with self._lock:
+            source_name = str(source_name or "").strip()
+            target_name = str(target_name or "").strip()
+            target_role = str(target_role or "").strip()
+            source_role = str(source_role or "").strip()
+            if source_name not in self.file_names:
+                raise KeyError(source_name)
+            self._validate_control_drop_target(target_name, target_role)
+
+            source_path = self._item_image_path_for_role(source_name, source_role) if source_role else self._first_item_image_path(source_name)
+            target_path = self._next_control_drop_path(target_name, target_role, source_path.suffix)
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            if source_path.resolve() == target_path.resolve():
+                raise ValueError("Source image is already at the target path.")
+            shutil.copy2(source_path, target_path)
+
+            summary = self.open_dirs()
+            return {
+                "source_name": source_name,
+                "source_role": source_role,
+                "target_name": target_name,
+                "target_role": target_role,
+                "copied": {"from": str(source_path), "to": str(target_path)},
+                "workspace": summary,
+            }
+
+    def upload_control_image(self, target_name: str, target_role: str, filename: str, image_data: str) -> dict:
+        with self._lock:
+            target_name = str(target_name or "").strip()
+            target_role = str(target_role or "").strip()
+            filename = str(filename or "").strip() or "dropped.png"
+            suffix = Path(filename).suffix.lower()
+            if suffix not in IMAGE_EXTS:
+                raise ValueError("Dropped file must be an image.")
+            self._validate_control_drop_target(target_name, target_role)
+            raw_data = str(image_data or "")
+            if "," in raw_data and raw_data.split(",", 1)[0].lower().startswith("data:"):
+                raw_data = raw_data.split(",", 1)[1]
+            try:
+                payload = base64.b64decode(raw_data, validate=True)
+            except Exception as exc:
+                raise ValueError(f"Invalid dropped image data: {exc}") from exc
+            if not payload:
+                raise ValueError("Dropped image is empty.")
+
+            target_path = self._next_control_drop_path(target_name, target_role, suffix)
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            target_path.write_bytes(payload)
+
+            summary = self.open_dirs()
+            return {
+                "target_name": target_name,
+                "target_role": target_role,
+                "saved": {"filename": filename, "path": str(target_path)},
+                "workspace": summary,
+            }
 
     def trash_item_files(self, name: str) -> dict:
         with self._lock:

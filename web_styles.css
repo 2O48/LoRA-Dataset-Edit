@@ -485,6 +485,10 @@ button {
   text-align: left;
 }
 
+.item-context-menu button[hidden] {
+  display: none;
+}
+
 .item-context-menu button:hover,
 .item-context-menu button:focus-visible {
   border-color: var(--accent);
@@ -1356,6 +1360,16 @@ textarea:focus {
   box-shadow: none;
 }
 
+.item-card.multi-selected {
+  border-color: var(--accent);
+  background: rgba(47, 111, 115, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(47, 111, 115, 0.3);
+}
+
+.item-card.active.multi-selected {
+  background: rgba(47, 111, 115, 0.22);
+}
+
 .item-card.multi-thumb {
   grid-template-columns: max-content minmax(160px, 1fr);
   gap: 10px;
@@ -1420,6 +1434,23 @@ textarea:focus {
   background: var(--green-surface-strong);
   color: var(--ink-faint);
   font-size: 12px;
+}
+
+.item-thumb-drop {
+  border: 1px dashed rgba(47, 111, 115, 0.34);
+  cursor: copy;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.item-thumb-drop.drag-over {
+  border-color: var(--accent);
+  background: rgba(47, 111, 115, 0.18);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px rgba(47, 111, 115, 0.28);
 }
 
 .item-card-main {
