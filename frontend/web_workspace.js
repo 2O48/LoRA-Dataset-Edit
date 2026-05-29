@@ -21,6 +21,42 @@ export function createWorkspaceBrowserModule({
     return ROLE_LABELS[target] || "目录";
   }
 
+  function normalizeBrowserPath(pathValue) {
+    return `${pathValue || ""}`.trim().replace(/\\/g, "/").replace(/\/+$/, "");
+  }
+
+  function browserPathSeparator(rootPath) {
+    return `${rootPath || ""}`.includes("\\") ? "\\" : "/";
+  }
+
+  function isAbsoluteBrowserPath(pathValue) {
+    const value = `${pathValue || ""}`.trim();
+    return /^([a-zA-Z]:[\\/]|\\\\|\/)/.test(value);
+  }
+
+  function workspacePathRelativeToBrowserRoot(pathValue) {
+    const value = `${pathValue || ""}`.trim();
+    const root = `${state.browserRoot || refs.workspaceBrowserRoot.value || ""}`.trim();
+    if (!value || !root || !isAbsoluteBrowserPath(value)) return value;
+    const normalizedValue = normalizeBrowserPath(value);
+    const normalizedRoot = normalizeBrowserPath(root);
+    const comparableValue = normalizedValue.toLowerCase();
+    const comparableRoot = normalizedRoot.toLowerCase();
+    if (comparableValue === comparableRoot) return ".";
+    if (!comparableValue.startsWith(`${comparableRoot}/`)) return value;
+    const relative = normalizedValue.slice(normalizedRoot.length + 1);
+    return relative.replace(/\//g, browserPathSeparator(root));
+  }
+
+  function resolveWorkspaceInputPath(pathValue) {
+    const value = `${pathValue || ""}`.trim();
+    const root = `${state.browserRoot || refs.workspaceBrowserRoot.value || ""}`.trim();
+    if (!value || !root || isAbsoluteBrowserPath(value)) return value;
+    if (value === ".") return root;
+    const separator = browserPathSeparator(root);
+    return `${root.replace(/[\\/]+$/, "")}${separator}${value.replace(/^[\\/]+/, "")}`;
+  }
+
   function syncWorkspaceBrowserTargetVisibility() {
     const count = activeControlCount();
     refs.workspaceBrowserTargetGroup.querySelectorAll("button[data-browser-target]").forEach((button) => {
@@ -121,6 +157,7 @@ export function createWorkspaceBrowserModule({
     ].find((value) => `${value || ""}`.trim());
     if (firstPath) {
       refs.workspaceBrowserRoot.value = firstPath.trim();
+      state.browserRoot = refs.workspaceBrowserRoot.value;
     }
   }
 
@@ -129,14 +166,16 @@ export function createWorkspaceBrowserModule({
     if (!value) return;
     const input = workspaceDirRef(state.browserTarget);
     if (!input) return;
-    input.value = value;
+    input.value = workspacePathRelativeToBrowserRoot(value);
     input.dispatchEvent(new Event("change"));
     state.browserMessage = `已填入${workspaceBrowserTargetLabel()}`;
     renderWorkspaceBrowser();
   }
 
   async function browseWorkspacePath(pathValue = "") {
-    const nextPath = `${pathValue || refs.workspaceBrowserRoot.value || ""}`.trim();
+    const explicitPath = `${pathValue || ""}`.trim();
+    const isRootBrowse = !explicitPath;
+    const nextPath = `${explicitPath || refs.workspaceBrowserRoot.value || ""}`.trim();
     if (!nextPath) {
       state.browserPath = "";
       state.browserParent = "";
@@ -160,8 +199,11 @@ export function createWorkspaceBrowserModule({
     state.browserParent = browser.parent || "";
     state.browserItems = Array.isArray(browser.items) ? browser.items : [];
     state.browserMessage = "";
-    refs.workspaceBrowserRoot.value = state.browserPath;
-    saveStored(STORAGE_KEYS.workspaceBrowserRoot, state.browserPath);
+    if (isRootBrowse || !state.browserRoot) {
+      state.browserRoot = state.browserPath;
+      refs.workspaceBrowserRoot.value = state.browserRoot;
+      saveStored(STORAGE_KEYS.workspaceBrowserRoot, state.browserRoot);
+    }
     renderWorkspaceBrowser();
   }
 
@@ -170,6 +212,8 @@ export function createWorkspaceBrowserModule({
     seedWorkspaceBrowserRootFromInputs,
     syncWorkspaceBrowserTargetVisibility,
     applyWorkspaceBrowserPath,
+    resolveWorkspaceInputPath,
+    workspacePathRelativeToBrowserRoot,
     renderWorkspaceBrowser,
     browseWorkspacePath,
   };
