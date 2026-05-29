@@ -14,6 +14,8 @@ export function createBrowserModule({
   renderGlobalTags,
   seedWorkspaceBrowserRootFromInputs,
   syncWorkspaceBrowserTargetVisibility,
+  resolveWorkspaceInputPath,
+  workspacePathRelativeToBrowserRoot,
   renderWorkspaceBrowser,
   closeUtilityPanel,
   setAiStatusLine,
@@ -28,6 +30,7 @@ export function createBrowserModule({
   let itemContextTarget = null;
   let itemContextCloseTimer = 0;
   let itemThumbObserver = null;
+  let imagePreview = null;
 
   function currentIssueCount() {
     return state.items.reduce((total, item) => {
@@ -589,12 +592,6 @@ export function createBrowserModule({
     const stageHeight = Math.max(0, stage.clientHeight - verticalPadding);
     if (!stageWidth || !stageHeight) return;
 
-    if (state.viewerImageMode === "actual") {
-      img.style.width = `${img.naturalWidth}px`;
-      img.style.height = `${img.naturalHeight}px`;
-      return;
-    }
-
     const scale = Math.min(stageWidth / img.naturalWidth, stageHeight / img.naturalHeight);
     img.style.width = `${Math.max(1, Math.floor(img.naturalWidth * scale))}px`;
     img.style.height = `${Math.max(1, Math.floor(img.naturalHeight * scale))}px`;
@@ -608,6 +605,325 @@ export function createBrowserModule({
     if (state.viewerResizeObserver || typeof ResizeObserver === "undefined") return;
     state.viewerResizeObserver = new ResizeObserver(() => updateAllViewerImageFits());
     state.viewerResizeObserver.observe(refs.viewerGrid);
+  }
+
+  function existingPreviewRoles() {
+    const item = state.currentItem;
+    if (!item) return [];
+    return [...activeControlRoles(), "result"].filter((role) => item.exists?.[role]);
+  }
+
+  function previewRoleLabel(role) {
+    return role === "result" ? "原图" : ROLE_LABELS[role] || role;
+  }
+
+  function ensureImagePreviewOverlay() {
+    if (imagePreview) return imagePreview;
+
+    const root = document.createElement("div");
+    root.className = "image-preview-overlay";
+    root.hidden = true;
+    root.setAttribute("aria-hidden", "true");
+    root.innerHTML = `
+      <div class="image-preview-stage" data-preview-stage>
+        <img class="image-preview-main" data-preview-main alt="">
+      </div>
+      <button class="image-preview-close" data-preview-close type="button" aria-label="关闭预览">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" aria-hidden="true"><rect width="256" height="256" fill="none"/><line x1="200" y1="56" x2="56" y2="200" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/><line x1="200" y1="200" x2="56" y2="56" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/></svg>
+      </button>
+      <div class="image-preview-controls" data-preview-controls></div>
+      <div class="image-preview-minimap" data-preview-minimap>
+        <img data-preview-thumb alt="">
+        <span class="image-preview-viewport" data-preview-viewport></span>
+      </div>
+    `;
+    document.body.appendChild(root);
+
+    imagePreview = {
+      root,
+      stage: root.querySelector("[data-preview-stage]"),
+      main: root.querySelector("[data-preview-main]"),
+      close: root.querySelector("[data-preview-close]"),
+      controls: root.querySelector("[data-preview-controls]"),
+      minimap: root.querySelector("[data-preview-minimap]"),
+      thumb: root.querySelector("[data-preview-thumb]"),
+      viewport: root.querySelector("[data-preview-viewport]"),
+      role: "",
+      panX: 0,
+      panY: 0,
+      dragging: null,
+      minimapDragging: null,
+      minimapMetrics: null,
+      minimapHideTimer: 0,
+    };
+
+    imagePreview.close.addEventListener("click", closeImagePreview);
+    root.addEventListener("click", (event) => {
+      if (event.target === root) closeImagePreview();
+    });
+    imagePreview.main.addEventListener("load", () => {
+      imagePreview.panX = 0;
+      imagePreview.panY = 0;
+      imagePreview.main.style.opacity = "1";
+      imagePreview.thumb.style.opacity = "1";
+      updateImagePreviewLayout();
+    });
+    imagePreview.stage.addEventListener("pointerdown", startImagePreviewDrag);
+    imagePreview.viewport.addEventListener("pointerdown", startImagePreviewMinimapDrag);
+    imagePreview.minimap.addEventListener("pointerdown", startImagePreviewMinimapDrag);
+    window.addEventListener("pointermove", moveImagePreviewDrag);
+    window.addEventListener("pointermove", moveImagePreviewMinimapDrag);
+    window.addEventListener("pointerup", stopImagePreviewDrag);
+    window.addEventListener("pointerup", stopImagePreviewMinimapDrag);
+    window.addEventListener("resize", updateImagePreviewLayout);
+    document.addEventListener("keydown", (event) => {
+      if (!imagePreview?.root.hidden && event.key === "Escape") closeImagePreview();
+    });
+
+    return imagePreview;
+  }
+
+  function showImagePreviewMinimap() {
+    const preview = ensureImagePreviewOverlay();
+    preview.root.classList.add("minimap-visible");
+    if (preview.minimapHideTimer) {
+      window.clearTimeout(preview.minimapHideTimer);
+      preview.minimapHideTimer = 0;
+    }
+  }
+
+  function scheduleImagePreviewMinimapHide() {
+    const preview = imagePreview;
+    if (!preview) return;
+    if (preview.minimapHideTimer) window.clearTimeout(preview.minimapHideTimer);
+    preview.minimapHideTimer = window.setTimeout(() => {
+      preview.minimapHideTimer = 0;
+      preview.root.classList.remove("minimap-visible");
+    }, 3000);
+  }
+
+  function openImagePreview(role) {
+    const item = state.currentItem;
+    if (!item?.exists?.[role]) return;
+    const preview = ensureImagePreviewOverlay();
+    preview.role = role;
+    preview.panX = 0;
+    preview.panY = 0;
+    preview.root.hidden = false;
+    preview.root.setAttribute("aria-hidden", "false");
+    document.body.classList.add("image-preview-open");
+    renderImagePreviewControls();
+    setImagePreviewRole(role);
+  }
+
+  function closeImagePreview() {
+    if (!imagePreview) return;
+    imagePreview.root.hidden = true;
+    imagePreview.root.setAttribute("aria-hidden", "true");
+    imagePreview.dragging = null;
+    imagePreview.main.removeAttribute("src");
+    imagePreview.thumb.removeAttribute("src");
+    imagePreview.minimapDragging = null;
+    imagePreview.minimapMetrics = null;
+    if (imagePreview.minimapHideTimer) {
+      window.clearTimeout(imagePreview.minimapHideTimer);
+      imagePreview.minimapHideTimer = 0;
+    }
+    imagePreview.root.classList.remove("minimap-visible", "minimap-dragging");
+    document.body.classList.remove("image-preview-open");
+  }
+
+  function renderImagePreviewControls() {
+    const preview = ensureImagePreviewOverlay();
+    preview.controls.textContent = "";
+    preview.controls.hidden = activeControlCount() === 0;
+    if (preview.controls.hidden) return;
+    for (const role of existingPreviewRoles()) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.previewRole = role;
+      button.textContent = previewRoleLabel(role);
+      button.addEventListener("click", () => setImagePreviewRole(role));
+      preview.controls.appendChild(button);
+    }
+  }
+
+  function setImagePreviewRole(role) {
+    const preview = ensureImagePreviewOverlay();
+    const item = state.currentItem;
+    if (!item?.exists?.[role]) return;
+    preview.role = role;
+    preview.panX = 0;
+    preview.panY = 0;
+    const src = imageUrl(role, item.name);
+    preview.main.alt = `${previewRoleLabel(role)} ${item.name}`;
+    preview.thumb.alt = `${previewRoleLabel(role)}缩略图`;
+    preview.main.style.opacity = "0";
+    preview.thumb.style.opacity = "0";
+    preview.viewport.hidden = true;
+    preview.main.src = src;
+    preview.thumb.src = src;
+    preview.controls.querySelectorAll("button[data-preview-role]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.previewRole === role);
+    });
+    updateImagePreviewLayout();
+  }
+
+  function previewStageRect() {
+    const preview = ensureImagePreviewOverlay();
+    const rect = preview.stage.getBoundingClientRect();
+    return {
+      width: Math.max(0, rect.width),
+      height: Math.max(0, rect.height),
+    };
+  }
+
+  function clampImagePreviewPan() {
+    const preview = ensureImagePreviewOverlay();
+    const img = preview.main;
+    if (!img.naturalWidth || !img.naturalHeight) return;
+    const stage = previewStageRect();
+    const overflowX = Math.max(0, img.naturalWidth - stage.width) / 2;
+    const overflowY = Math.max(0, img.naturalHeight - stage.height) / 2;
+    preview.panX = Math.min(overflowX, Math.max(-overflowX, preview.panX));
+    preview.panY = Math.min(overflowY, Math.max(-overflowY, preview.panY));
+  }
+
+  function updateImagePreviewMinimapSize() {
+    const preview = ensureImagePreviewOverlay();
+    const img = preview.main;
+    if (!img.naturalWidth || !img.naturalHeight) return;
+    const style = window.getComputedStyle(preview.root);
+    const maxSize = Number.parseFloat(style.getPropertyValue("--image-preview-minimap-size")) || 150;
+    const aspectRatio = img.naturalWidth / img.naturalHeight;
+    const width = aspectRatio >= 1 ? maxSize : maxSize * aspectRatio;
+    const height = aspectRatio >= 1 ? maxSize / aspectRatio : maxSize;
+    preview.minimap.style.width = `${width}px`;
+    preview.minimap.style.height = `${height}px`;
+  }
+
+  function updateImagePreviewLayout() {
+    if (!imagePreview || imagePreview.root.hidden) return;
+    const preview = imagePreview;
+    const img = preview.main;
+    if (!img.naturalWidth || !img.naturalHeight) return;
+    clampImagePreviewPan();
+    updateImagePreviewMinimapSize();
+    img.style.width = `${img.naturalWidth}px`;
+    img.style.height = `${img.naturalHeight}px`;
+    img.style.transform = `translate(-50%, -50%) translate(${preview.panX}px, ${preview.panY}px)`;
+    updateImagePreviewViewport();
+  }
+
+  function updateImagePreviewViewport() {
+    const preview = ensureImagePreviewOverlay();
+    const img = preview.main;
+    const mini = preview.minimap.getBoundingClientRect();
+    const stage = previewStageRect();
+    if (!img.naturalWidth || !img.naturalHeight || !mini.width || !mini.height) {
+      preview.viewport.hidden = true;
+      return;
+    }
+
+    const imageScale = Math.min(mini.width / img.naturalWidth, mini.height / img.naturalHeight);
+    const thumbWidth = img.naturalWidth * imageScale;
+    const thumbHeight = img.naturalHeight * imageScale;
+    const thumbX = (mini.width - thumbWidth) / 2;
+    const thumbY = (mini.height - thumbHeight) / 2;
+    preview.minimapMetrics = {
+      imageScale,
+      thumbX,
+      thumbY,
+      thumbWidth,
+      thumbHeight,
+      stageWidth: stage.width,
+      stageHeight: stage.height,
+    };
+    const clippedX = img.naturalWidth > stage.width;
+    const clippedY = img.naturalHeight > stage.height;
+    if (!clippedX && !clippedY) {
+      preview.viewport.hidden = true;
+      return;
+    }
+
+    const visibleWidth = Math.min(stage.width, img.naturalWidth);
+    const visibleHeight = Math.min(stage.height, img.naturalHeight);
+    const imageLeft = clippedX ? (img.naturalWidth - stage.width) / 2 - preview.panX : 0;
+    const imageTop = clippedY ? (img.naturalHeight - stage.height) / 2 - preview.panY : 0;
+    preview.viewport.hidden = false;
+    preview.viewport.style.left = `${thumbX + imageLeft * imageScale}px`;
+    preview.viewport.style.top = `${thumbY + imageTop * imageScale}px`;
+    preview.viewport.style.width = `${visibleWidth * imageScale}px`;
+    preview.viewport.style.height = `${visibleHeight * imageScale}px`;
+  }
+
+  function setPreviewPanFromMinimapPoint(clientX, clientY) {
+    const preview = ensureImagePreviewOverlay();
+    const img = preview.main;
+    const metrics = preview.minimapMetrics;
+    if (!img.naturalWidth || !img.naturalHeight || !metrics) return;
+    const mini = preview.minimap.getBoundingClientRect();
+    const imageX = (clientX - mini.left - metrics.thumbX) / metrics.imageScale;
+    const imageY = (clientY - mini.top - metrics.thumbY) / metrics.imageScale;
+    const maxPanX = Math.max(0, img.naturalWidth - metrics.stageWidth) / 2;
+    const maxPanY = Math.max(0, img.naturalHeight - metrics.stageHeight) / 2;
+    preview.panX = maxPanX ? img.naturalWidth / 2 - imageX : 0;
+    preview.panY = maxPanY ? img.naturalHeight / 2 - imageY : 0;
+    updateImagePreviewLayout();
+  }
+
+  function startImagePreviewDrag(event) {
+    const preview = ensureImagePreviewOverlay();
+    if (event.button !== 0 || !preview.main.naturalWidth) return;
+    event.preventDefault();
+    preview.dragging = {
+      x: event.clientX,
+      y: event.clientY,
+      panX: preview.panX,
+      panY: preview.panY,
+    };
+    showImagePreviewMinimap();
+    preview.stage.setPointerCapture?.(event.pointerId);
+    preview.root.classList.add("dragging");
+  }
+
+  function moveImagePreviewDrag(event) {
+    const preview = imagePreview;
+    if (!preview?.dragging) return;
+    preview.panX = preview.dragging.panX + event.clientX - preview.dragging.x;
+    preview.panY = preview.dragging.panY + event.clientY - preview.dragging.y;
+    updateImagePreviewLayout();
+  }
+
+  function stopImagePreviewDrag() {
+    if (!imagePreview?.dragging) return;
+    imagePreview.dragging = null;
+    imagePreview.root.classList.remove("dragging");
+    scheduleImagePreviewMinimapHide();
+  }
+
+  function startImagePreviewMinimapDrag(event) {
+    const preview = ensureImagePreviewOverlay();
+    if (event.button !== 0 || preview.viewport.hidden) return;
+    event.preventDefault();
+    event.stopPropagation();
+    preview.minimapDragging = true;
+    showImagePreviewMinimap();
+    preview.root.classList.add("minimap-dragging");
+    preview.minimap.setPointerCapture?.(event.pointerId);
+    setPreviewPanFromMinimapPoint(event.clientX, event.clientY);
+  }
+
+  function moveImagePreviewMinimapDrag(event) {
+    if (!imagePreview?.minimapDragging) return;
+    setPreviewPanFromMinimapPoint(event.clientX, event.clientY);
+  }
+
+  function stopImagePreviewMinimapDrag() {
+    if (!imagePreview?.minimapDragging) return;
+    imagePreview.minimapDragging = null;
+    imagePreview.root.classList.remove("minimap-dragging");
+    scheduleImagePreviewMinimapHide();
   }
 
   function renderItemList() {
@@ -851,7 +1167,7 @@ export function createBrowserModule({
     ensureViewerRoleDragEvents();
     ensureViewerResizeObserver();
     refs.viewerGrid.dataset.mode = state.viewMode;
-    refs.viewerGrid.dataset.imageMode = state.viewerImageMode || "fit";
+    refs.viewerGrid.dataset.imageMode = "fit";
     refs.currentName.textContent = item ? item.name : "未选择图片";
     renderCurrentMeta(item);
 
@@ -892,11 +1208,12 @@ export function createBrowserModule({
       img.src = imageUrl(role, item.name);
       img.alt = item.name;
       img.draggable = false;
-      img.title = state.viewerImageMode === "actual" ? "点击切换为完整显示" : "点击切换为 100% 大小";
+      img.title = "点击打开大图预览";
       img.addEventListener("load", () => updateViewerImageFit(img));
-      img.addEventListener("click", () => {
-        state.viewerImageMode = state.viewerImageMode === "actual" ? "fit" : "actual";
-        renderViewer();
+      img.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        openImagePreview(role);
       });
       stage.appendChild(img);
       const size = item.resolution[role];
@@ -1003,10 +1320,10 @@ export function createBrowserModule({
     refs.ignoreTokensInput.value = Array.isArray(settings.ignore_tokens)
       ? settings.ignore_tokens.join(", ")
       : refs.ignoreTokensInput.value;
-    refs.control1Dir.value = dirs.control1 || "";
-    refs.control2Dir.value = dirs.control2 || "";
-    refs.control3Dir.value = dirs.control3 || "";
-    refs.resultDir.value = dirs.result || "";
+    refs.control1Dir.value = workspacePathRelativeToBrowserRoot?.(dirs.control1) || dirs.control1 || "";
+    refs.control2Dir.value = workspacePathRelativeToBrowserRoot?.(dirs.control2) || dirs.control2 || "";
+    refs.control3Dir.value = workspacePathRelativeToBrowserRoot?.(dirs.control3) || dirs.control3 || "";
+    refs.resultDir.value = workspacePathRelativeToBrowserRoot?.(dirs.result) || dirs.result || "";
     if (refs.swapControlDir && !refs.swapControlDir.value.trim() && dirs.control1) {
       refs.swapControlDir.value = dirs.control1;
     }
@@ -1021,10 +1338,10 @@ export function createBrowserModule({
 
   function workspaceOpenPayloadFromInputs() {
     return {
-      control1_dir: refs.control1Dir.value.trim(),
-      control2_dir: refs.control2Dir.value.trim(),
-      control3_dir: refs.control3Dir.value.trim(),
-      result_dir: refs.resultDir.value.trim(),
+      control1_dir: resolveWorkspaceInputPath?.(refs.control1Dir.value.trim()) || refs.control1Dir.value.trim(),
+      control2_dir: resolveWorkspaceInputPath?.(refs.control2Dir.value.trim()) || refs.control2Dir.value.trim(),
+      control3_dir: resolveWorkspaceInputPath?.(refs.control3Dir.value.trim()) || refs.control3Dir.value.trim(),
+      result_dir: resolveWorkspaceInputPath?.(refs.resultDir.value.trim()) || refs.resultDir.value.trim(),
       control_count: Number(refs.controlCount.value ?? 1),
       ignore_tokens: refs.ignoreTokensInput.value.trim(),
     };

@@ -238,6 +238,7 @@ export function createBootstrapModule({
       refs.autoOpenLastWorkspace.checked = readStored(STORAGE_KEYS.autoOpenLastWorkspace, "false") === "true";
     }
     refs.workspaceBrowserRoot.value = readStored(STORAGE_KEYS.workspaceBrowserRoot, "");
+    state.browserRoot = refs.workspaceBrowserRoot.value.trim();
     restoreSelectValue(refs.exportTargetPixels, STORAGE_KEYS.exportTargetPixels, "4");
     restoreSelectValue(refs.exportSizeMultiple, STORAGE_KEYS.exportSizeMultiple, "16");
     refs.exportProjectName.value = readStored(STORAGE_KEYS.exportProjectName, "");
@@ -273,7 +274,8 @@ export function createBootstrapModule({
       saveStored(STORAGE_KEYS.autoOpenLastWorkspace, refs.autoOpenLastWorkspace.checked ? "true" : "false");
     });
     refs.workspaceBrowserRoot.addEventListener("change", () => {
-      saveStored(STORAGE_KEYS.workspaceBrowserRoot, refs.workspaceBrowserRoot.value.trim());
+      state.browserRoot = refs.workspaceBrowserRoot.value.trim();
+      saveStored(STORAGE_KEYS.workspaceBrowserRoot, state.browserRoot);
     });
     refs.projectSortMode?.addEventListener("change", () => {
       state.projectSortMode = refs.projectSortMode.value;
