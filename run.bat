@@ -60,10 +60,15 @@ if not "%errorlevel%"=="0" (
   )
 )
 
-%PYTHON_CMD% bootstrap_env.py --ensure-base
-if not "%errorlevel%"=="0" (
-  echo Failed to prepare the local .venv environment.
-  exit /b 1
+%PYTHON_CMD% bootstrap_env.py --is-base-ready >nul 2>nul
+if "%errorlevel%"=="0" (
+  echo [env] Reusing ready project .venv
+) else (
+  %PYTHON_CMD% bootstrap_env.py --ensure-base
+  if not "%errorlevel%"=="0" (
+    echo Failed to prepare the local .venv environment.
+    exit /b 1
+  )
 )
 
 for /f "usebackq delims=" %%p in (`%PYTHON_CMD% bootstrap_env.py --print-python`) do set VENV_PYTHON=%%p

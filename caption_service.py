@@ -10,6 +10,7 @@ import gc
 import importlib
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -87,22 +88,63 @@ def progress(pct: int, message: str = ""):
     send({"type": "progress", "pct": int(pct), "msg": message})
 
 
-def pip_install(*packages: str, extra_index: str | None = None):
+def _stream_pip_install(
+    *packages: str,
+    extra_index: str | None = None,
+    progress_start: int = 0,
+    progress_end: int = 0,
+    progress_label: str = "",
+):
     cmd = [
         sys.executable,
         "-m",
         "pip",
         "install",
-        "--quiet",
+        "--progress-bar",
+        "raw",
         "--disable-pip-version-check",
         *packages,
     ]
     if extra_index:
         cmd += ["--index-url", extra_index]
     log(f"安装: {' '.join(packages)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        tail = (result.stderr or result.stdout or "").strip()[-800:]
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        env={**os.environ, "PYTHONUNBUFFERED": "1"},
+    )
+    output_lines: list[str] = []
+    assert proc.stdout is not None
+    for raw in proc.stdout:
+        line = raw.rstrip()
+        if not line:
+            continue
+        output_lines.append(line)
+        match = re.search(r"progress\s+(\d+)\s+of\s+(\d+)", line, flags=re.IGNORECASE)
+        if match and progress_end > progress_start:
+            current = int(match.group(1))
+            total = max(1, int(match.group(2)))
+            pct = progress_start + int((current / total) * (progress_end - progress_start))
+            progress(min(progress_end - 1, pct), progress_label or "安装依赖中...")
+            log(f"pip 下载进度 {int((current / total) * 100)}% ({current}/{total})")
+            continue
+        lower = line.lower()
+        if "collecting " in lower and progress_end > progress_start:
+            progress(min(progress_end - 1, progress_start + max(1, (progress_end - progress_start) // 8)), progress_label or "安装依赖中...")
+        elif "downloading" in lower and progress_end > progress_start:
+            progress(min(progress_end - 1, progress_start + max(2, (progress_end - progress_start) // 3)), progress_label or "安装依赖中...")
+        elif "installing collected packages" in lower and progress_end > progress_start:
+            progress(min(progress_end - 1, progress_start + max(4, ((progress_end - progress_start) * 4) // 5)), progress_label or "安装依赖中...")
+        elif "successfully installed" in lower and progress_end > progress_start:
+            progress(progress_end, progress_label or "安装依赖完成")
+        log(line)
+    proc.wait()
+    if proc.returncode != 0:
+        tail = "\n".join(output_lines).strip()[-800:]
         raise RuntimeError(tail or "安装失败")
 
 
@@ -250,29 +292,52 @@ def ensure_deps_qwen():
         import torch  # noqa: F401
     except Exception:
         log("安装 PyTorch CUDA 12.4...")
-        pip_install("torch", "torchvision", extra_index="https://download.pytorch.org/whl/cu124")
+        _stream_pip_install(
+            "torch",
+            "torchvision",
+            extra_index="https://download.pytorch.org/whl/cu124",
+            progress_start=3,
+            progress_end=18,
+            progress_label="安装 PyTorch CUDA 12.4...",
+        )
 
     try:
         import PIL  # noqa: F401
     except Exception:
-        pip_install("Pillow")
+        _stream_pip_install("Pillow", progress_start=18, progress_end=24, progress_label="安装 Pillow...")
 
     try:
         import accelerate  # noqa: F401
     except Exception:
-        pip_install("--upgrade", "accelerate")
+        _stream_pip_install("--upgrade", "accelerate", progress_start=24, progress_end=32, progress_label="安装 accelerate...")
 
     try:
         import huggingface_hub  # noqa: F401
     except Exception:
-        pip_install("--upgrade", "huggingface_hub")
+        _stream_pip_install("--upgrade", "huggingface_hub", progress_start=32, progress_end=40, progress_label="安装 huggingface_hub...")
 
     try:
         from transformers import AutoProcessor, Qwen3_5ForConditionalGeneration  # noqa: F401
     except Exception:
         log("安装/升级 transformers 与依赖（Qwen3.5 需要）...")
-        pip_install("--upgrade", "huggingface_hub", "accelerate", "safetensors", "numpy<2", "Pillow")
-        pip_install("--upgrade", "git+https://github.com/huggingface/transformers.git@main")
+        _stream_pip_install(
+            "--upgrade",
+            "huggingface_hub",
+            "accelerate",
+            "safetensors",
+            "numpy<2",
+            "Pillow",
+            progress_start=40,
+            progress_end=58,
+            progress_label="安装 Qwen 公共依赖...",
+        )
+        _stream_pip_install(
+            "--upgrade",
+            "git+https://github.com/huggingface/transformers.git@main",
+            progress_start=58,
+            progress_end=76,
+            progress_label="安装最新 Transformers...",
+        )
         importlib.invalidate_caches()
         from transformers import AutoProcessor, Qwen3_5ForConditionalGeneration  # noqa: F401
 

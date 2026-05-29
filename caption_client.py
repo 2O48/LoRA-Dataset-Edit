@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import re
 import signal
 import subprocess
 import sys
@@ -373,20 +374,80 @@ class DependencyInstaller:
             self.status = status
             self.progress_pct = progress_pct
 
-    def _run_step(self, name: str, cmd: list[str], progress_pct: int) -> bool:
+    def _step_progress_from_line(self, line: str, start_pct: int, end_pct: int) -> int | None:
+        span = max(1, end_pct - start_pct)
+        lower = (line or "").lower()
+        progress_match = re.search(r"progress\s+(\d+)\s+of\s+(\d+)", line, flags=re.IGNORECASE)
+        if progress_match:
+            current = int(progress_match.group(1))
+            total = max(1, int(progress_match.group(2)))
+            return min(end_pct - 1, start_pct + int((current / total) * span))
+        if "collecting " in lower or "looking in indexes" in lower:
+            return min(end_pct - 1, start_pct + max(1, span // 8))
+        if "downloading" in lower:
+            return min(end_pct - 1, start_pct + max(2, span // 3))
+        if "building wheel" in lower or "preparing metadata" in lower:
+            return min(end_pct - 1, start_pct + max(3, (span * 2) // 3))
+        if "installing collected packages" in lower:
+            return min(end_pct - 1, start_pct + max(4, (span * 4) // 5))
+        if "successfully installed" in lower:
+            return end_pct
+        return None
+
+    def _format_step_line(self, line: str) -> str | None:
+        text = (line or "").strip()
+        if not text:
+            return None
+        progress_match = re.search(r"progress\s+(\d+)\s+of\s+(\d+)", text, flags=re.IGNORECASE)
+        if progress_match:
+            current = int(progress_match.group(1))
+            total = max(1, int(progress_match.group(2)))
+            pct = int((current / total) * 100)
+            return f"pip 下载进度 {pct}% ({current}/{total})"
+        if text.startswith("[env]"):
+            return text
+        return text
+
+    def _run_step(self, name: str, cmd: list[str], start_pct: int, end_pct: int) -> bool:
         self._append(f"Installing {name}...", "warn")
         creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         try:
-            result = subprocess.run(cmd, cwd=BASE_DIR, capture_output=True, text=True, creationflags=creationflags)
+            proc = subprocess.Popen(
+                cmd,
+                cwd=BASE_DIR,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                creationflags=creationflags,
+                env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            )
         except Exception as exc:
             self._append(f"{name} failed: {diagnose_python_start_failure(exc)}", "error")
             return False
-        if result.returncode == 0:
+        with self._lock:
+            self.progress_pct = max(self.progress_pct, start_pct)
+        output_lines: list[str] = []
+        assert proc.stdout is not None
+        for raw in proc.stdout:
+            line = raw.rstrip()
+            if not line:
+                continue
+            output_lines.append(line)
+            next_pct = self._step_progress_from_line(line, start_pct, end_pct)
+            if next_pct is not None:
+                with self._lock:
+                    self.progress_pct = max(self.progress_pct, next_pct)
+            formatted = self._format_step_line(line)
+            if formatted:
+                self._append(formatted, "info")
+        proc.wait()
+        if proc.returncode == 0:
             with self._lock:
-                self.progress_pct = progress_pct
+                self.progress_pct = max(self.progress_pct, end_pct)
             self._append(f"{name} OK", "ok")
             return True
-        tail = (result.stderr or result.stdout or "").strip()[-1200:]
+        tail = "\n".join(output_lines).strip()[-1200:]
         self._append(f"{name} failed: {diagnose_pip_failure(tail)} {tail}", "error")
         return False
 
@@ -408,7 +469,7 @@ class DependencyInstaller:
         if not running_in_project_venv():
             self._append("当前服务不在项目 .venv 中，安装仍会强制写入项目 .venv，不会改动 Conda/系统环境。", "warn")
 
-        if not self._run_step("project .venv and base requirements", [str(bootstrap_py), str(BASE_DIR / "bootstrap_env.py"), "--ensure-base"], 20):
+        if not self._run_step("project .venv and base requirements", [str(bootstrap_py), str(BASE_DIR / "bootstrap_env.py"), "--ensure-base"], 5, 25):
             self._finish("failed", self.progress_pct)
             return
         if not venv_py.exists():
@@ -417,15 +478,14 @@ class DependencyInstaller:
             return
 
         steps = [
-            ("PyTorch CUDA 12.4", [str(venv_py), "-m", "pip", "install", "--quiet", "--disable-pip-version-check", "-r", str(BASE_DIR / "requirements-qwen-cu124.txt")]),
-            ("huggingface_hub / accelerate / pillow / safetensors", [str(venv_py), "-m", "pip", "install", "--quiet", "--disable-pip-version-check", "--upgrade", "-r", str(BASE_DIR / "requirements-qwen-common.txt")]),
-            ("transformers latest for Qwen3.5", [str(venv_py), "-m", "pip", "install", "--quiet", "--disable-pip-version-check", "git+https://github.com/huggingface/transformers.git@main"]),
+            ("PyTorch CUDA 12.4", [str(venv_py), "-m", "pip", "install", "--progress-bar", "raw", "--disable-pip-version-check", "-r", str(BASE_DIR / "requirements-qwen-cu124.txt")], 25, 60),
+            ("huggingface_hub / accelerate / pillow / safetensors", [str(venv_py), "-m", "pip", "install", "--progress-bar", "raw", "--disable-pip-version-check", "--upgrade", "-r", str(BASE_DIR / "requirements-qwen-common.txt")], 60, 82),
+            ("transformers latest for Qwen3.5", [str(venv_py), "-m", "pip", "install", "--progress-bar", "raw", "--disable-pip-version-check", "--upgrade", "git+https://github.com/huggingface/transformers.git@main"], 82, 98),
         ]
 
         ok = True
-        for index, (name, cmd) in enumerate(steps, start=1):
-            progress_pct = 20 + int(index / len(steps) * 75)
-            if not self._run_step(name, cmd, progress_pct):
+        for name, cmd, start_pct, end_pct in steps:
+            if not self._run_step(name, cmd, start_pct, end_pct):
                 ok = False
 
         if ok:

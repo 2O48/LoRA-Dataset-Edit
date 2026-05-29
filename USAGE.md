@@ -34,7 +34,8 @@
 ```text
 README.md                       完整功能说明
 USAGE.md                        当前快速使用说明
-environment.caption-codex.yml   Conda 环境文件
+install.sh                      Linux / WSL 预安装脚本
+install.bat                     Windows 预安装脚本
 start.sh                        推荐 Linux / WSL 启动脚本
 run.sh                          固定 127.0.0.1:8100 启动脚本
 run.bat                         Windows 启动脚本
@@ -46,17 +47,33 @@ web_styles.css                  页面样式
 
 ## 3. 首次安装环境
 
-项目推荐使用 Conda 环境 `caption-codex`。
+项目默认使用项目内 `.venv`，不会把依赖装到 Conda 或系统 Python。
 
-在项目目录中执行：
+推荐先预安装基础环境：
 
 ```bash
-conda env create -f environment.caption-codex.yml
+./install.sh
 ```
 
-如果环境已经存在，可以跳过这一步。
+如果你希望本地 Qwen 也一次装好，可以执行：
 
-如果只使用基础编辑、图像处理、API 标注或 Ollama 标注，默认环境通常够用。本地 Qwen 模型推理可能还需要额外安装 PyTorch、Transformers 等依赖，可在网页里的本地 Qwen 配置区点击“安装依赖”。
+```bash
+./install.sh --with-qwen
+```
+
+Windows 下可执行：
+
+```text
+install.bat
+```
+
+或：
+
+```text
+install.bat --with-qwen
+```
+
+如果只使用基础编辑、图像处理、API 标注或 Ollama 标注，基础环境通常够用。本地 Qwen 仍可在网页里点击“安装依赖”，也可以在预安装阶段直接用 `--with-qwen` 装好。
 
 ## 4. 启动 Web 工作台
 
@@ -178,7 +195,7 @@ http://127.0.0.1:11434
 ### 本地 Qwen
 
 1. 在 `标注设置` 中选择 Qwen3.5 模型。
-2. 首次使用点击 `安装依赖`。
+2. 若之前没有执行 `install.sh --with-qwen` / `install.bat --with-qwen`，首次使用点击 `安装依赖`。
 3. 点击 `加载模型`。
 4. 点击 `验证模型`。
 5. 顶部 `标注引擎` 选择 `本地 Qwen`。

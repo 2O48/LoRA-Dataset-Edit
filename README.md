@@ -244,10 +244,16 @@
 
 ### 3.1 WSL / Linux
 
-首次创建环境：
+预安装项目环境：
 
 ```bash
-conda env create -f environment.caption-codex.yml
+./install.sh
+```
+
+如果希望本地 Qwen 依赖也一并装好：
+
+```bash
+./install.sh --with-qwen
 ```
 
 启动 Web GUI：
@@ -258,9 +264,7 @@ conda env create -f environment.caption-codex.yml
 
 如需局域网访问：
 
-```bash
-conda run -n caption-codex python web_server.py --host 0.0.0.0 --port 8100
-```
+项目默认使用项目内 `.venv`，不会把基础依赖或本地 Qwen 依赖安装到 Conda 或系统 Python。
 
 启动归档的旧版桌面 GUI：
 
@@ -275,7 +279,7 @@ conda run -n caption-codex python web_server.py --host 0.0.0.0 --port 8100
 - `run.bat`
 - `legacy/run_legacy.bat`
 
-如果系统已安装 Conda，脚本会优先使用 `caption-codex` 环境。
+如果你更喜欢先装环境再启动，直接执行 `./install.sh` 或 Windows 下的 `install.bat` 即可。
 
 如需局域网访问，手动用命令启动并指定 `--host 0.0.0.0`。
 
@@ -354,7 +358,7 @@ models/Qwen3.5-0.8B
 
 ### 5.3 手动安装依赖
 
-网页里的 `安装 Qwen 依赖到 .venv` 会自动确认/创建项目 `.venv`，并只使用 `.venv` 的 Python 安装。若需要手动安装本地 Qwen 依赖，先确认已通过 `./start.sh` 或 `run.bat` 创建 `.venv`，再执行：
+网页里的 `安装 Qwen 依赖到 .venv` 会自动确认/创建项目 `.venv`，并只使用 `.venv` 的 Python 安装。若希望预装本地 Qwen，可直接执行 `./install.sh --with-qwen` 或 `install.bat --with-qwen`。若需要手动安装本地 Qwen 依赖，先确认已通过 `./install.sh`、`./start.sh` 或 `run.bat` 创建 `.venv`，再执行：
 
 ```bash
 .venv/bin/python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124

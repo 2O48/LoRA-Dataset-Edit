@@ -53,9 +53,13 @@ if ! "$PYTHON_CMD" -c "import socket,sys; host=sys.argv[1]; port=int(sys.argv[2]
   fi
 fi
 
-if ! "$PYTHON_CMD" bootstrap_env.py --ensure-base; then
-  echo "Failed to prepare the local .venv environment."
-  exit 1
+if "$PYTHON_CMD" bootstrap_env.py --is-base-ready >/dev/null 2>&1; then
+  echo "[env] Reusing ready project .venv"
+else
+  if ! "$PYTHON_CMD" bootstrap_env.py --ensure-base; then
+    echo "Failed to prepare the local .venv environment."
+    exit 1
+  fi
 fi
 
 VENV_PYTHON="$("$PYTHON_CMD" bootstrap_env.py --print-python)"
